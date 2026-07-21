@@ -33,3 +33,6 @@ Thumbs.db
 
 # Cache
 *.db
+
+# PRD (internal planning doc, not for public repo)
+ci-context-PRD.md
