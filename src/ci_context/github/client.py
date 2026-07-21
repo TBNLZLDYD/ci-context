@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-from github import Github, Auth
+from github import Auth, Github
 
 
 class GitHubClient:
@@ -16,7 +14,7 @@ class GitHubClient:
     go through this class so rate-limit state and auth are managed in one place.
     """
 
-    def __init__(self, token: Optional[str] = None) -> None:
+    def __init__(self, token: str | None = None) -> None:
         # TODO: implement full auth flow (gh auth → GITHUB_TOKEN → GH_TOKEN → error)
         if token:
             self._client = Github(auth=Auth.Token(token))
