@@ -5,10 +5,6 @@ import unittest
 from ci_context.analysis.normalizer import (
     normalize,
     normalize_to_text,
-    NormalizedLine,
-    ANSI_RE,
-    GHA_TIMESTAMP_RE,
-    SECTION_RE,
 )
 
 
