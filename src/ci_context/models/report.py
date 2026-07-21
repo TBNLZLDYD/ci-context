@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ci_context.models.run import WorkflowRunInfo
-from ci_context.models.error import ExtractedError
 from ci_context.models.commit import CommitInfo
+from ci_context.models.error import ExtractedError
 from ci_context.models.pr import PRInfo
+from ci_context.models.run import WorkflowRunInfo
 
 
 @dataclass

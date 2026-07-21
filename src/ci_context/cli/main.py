@@ -1,6 +1,5 @@
 """Root CLI entry point — Typer app and global options."""
 
-from typing import Optional
 
 import typer
 
@@ -15,8 +14,8 @@ app = typer.Typer(
 )
 
 # Register sub-command groups (imported lazily to avoid circular deps at import time)
-from ci_context.cli.gh import gh_app  # noqa: E402
 from ci_context.cli.cache import cache_app  # noqa: E402
+from ci_context.cli.gh import gh_app  # noqa: E402
 
 app.add_typer(gh_app, name="gh")
 app.add_typer(cache_app, name="cache")
@@ -31,7 +30,7 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         callback=version_callback,
