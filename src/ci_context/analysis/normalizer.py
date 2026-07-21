@@ -1,4 +1,4 @@
-"""Log normalization — strip/normalize — remove ANSI codes, timestamps, and other noise from CI logs."""
+"""Log normalization — strip ANSI codes, timestamps, and other noise from CI logs."""
 
 from __future__ import annotations
 
