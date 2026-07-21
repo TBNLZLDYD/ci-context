@@ -2,9 +2,9 @@
 
 import os
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from ci_context.github.auth import resolve_token, _gh_available, _read_config_token
+from ci_context.github.auth import _gh_available, _read_config_token, resolve_token
 from ci_context.github.exceptions import AuthError
 
 
