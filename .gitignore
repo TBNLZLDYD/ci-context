@@ -23,6 +23,7 @@ venv/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
 
 # VCR cassettes (may contain tokens — regenerate locally)
 tests/fixtures/cassettes/
@@ -34,5 +35,5 @@ Thumbs.db
 # Cache
 *.db
 
-# PRD (internal planning doc, not for public repo)
-ci-context-PRD.md
+# docs
+docs/
