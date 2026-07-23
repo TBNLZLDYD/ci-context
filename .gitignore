@@ -23,6 +23,7 @@ venv/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
 
 # VCR cassettes (may contain tokens — regenerate locally)
 tests/fixtures/cassettes/
@@ -33,3 +34,6 @@ Thumbs.db
 
 # Cache
 *.db
+
+# docs
+docs/

@@ -1,5 +1,6 @@
 """Root CLI entry point — Typer app and global options."""
 
+import logging
 
 import typer
 
@@ -30,6 +31,7 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: bool | None = typer.Option(
         None,
         "--version",
@@ -37,5 +39,25 @@ def main(
         is_eager=True,
         help="Show version and exit.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output (DEBUG-level logging).",
+    ),
 ) -> None:
     """ci-context — One command to get full CI failure context."""
+    # Store verbose flag for sub-commands to access via ctx.obj
+    ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
+
+    # Configure logging once at the application root, not per-sub-command.
+    # force=True ensures our handler wins even if an imported library already
+    # set one up.  DEBUG level in verbose mode exposes all library diagnostics;
+    # without --verbose, the root logger stays silent (no handler = no output).
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s: %(name)s: %(message)s",
+            force=True,
+        )
