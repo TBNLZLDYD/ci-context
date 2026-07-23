@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import stat
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_token(cli_token: str | None = None) -> str:
@@ -77,8 +80,13 @@ def _read_config_token() -> str | None:
         with open(config_file, "rb") as f:
             config = tomllib.load(f)
         return config.get("token")
-    except Exception:
-        # Config parse failed, ignore
+    except tomllib.TOMLDecodeError as e:
+        # Malformed TOML — the user should know their config is broken
+        logger.warning("Failed to parse config file %s: %s", config_file, e)
+        return None
+    except OSError as e:
+        # PermissionError, IsADirectoryError, or other I/O failures
+        logger.warning("Cannot read config file %s: %s", config_file, e)
         return None
 
 
