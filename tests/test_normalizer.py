@@ -35,6 +35,12 @@ class TestNormalize(unittest.TestCase):
         result = normalize(raw)
         self.assertEqual(result[0].content, "Error: something failed")
 
+    def test_removes_gha_timestamp_with_leading_whitespace(self):
+        """Should remove timestamps even when the line has leading spaces."""
+        raw = "  2026-07-16T10:30:00.1234567Z Error: something failed"
+        result = normalize(raw)
+        self.assertEqual(result[0].content, "Error: something failed")
+
     def test_removes_section_markers(self):
         """Should remove ##[section] markers."""
         raw = "##[section]\nSome output\n##[section]\nMore output"
