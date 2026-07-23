@@ -1,7 +1,5 @@
 """`ci-context gh` sub-command group — GitHub Actions commands."""
 
-import logging
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -27,6 +25,7 @@ console = Console()
 
 @gh_app.command("run")
 def run_command(
+    ctx: typer.Context,
     run_id: int = typer.Argument(..., help="GitHub Actions run ID."),
     repo: str | None = typer.Option(
         None, "--repo", "-r", help="Repository in owner/repo format. Auto-detected from git remote."
@@ -39,18 +38,10 @@ def run_command(
     error_lines: int = typer.Option(5, "--error-lines", help="Raw log lines per error."),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable colored output."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     token: str | None = typer.Option(None, "--token", help="GitHub API token."),
 ) -> None:
     """Analyze a single GitHub Actions run and generate a failure report."""
-    # Enable logging in verbose mode so fetch_job_log diagnostics are visible.
-    # force=True ensures our handler wins even if an imported library already set one up.
-    if verbose:
-        logging.basicConfig(
-            level=logging.WARNING,
-            format="%(levelname)s: %(name)s: %(message)s",
-            force=True,
-        )
+    verbose = ctx.obj.get("verbose", False)
 
     # 1. Resolve authentication
     try:
@@ -169,7 +160,6 @@ def recent_command(
     ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable colored output."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     token: str | None = typer.Option(None, "--token", help="GitHub API token."),
 ) -> None:
     """Show recent failed runs for the current repository."""
@@ -182,7 +172,6 @@ def repo_command(
     owner_repo: str = typer.Argument(..., help="Repository in owner/repo format."),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable colored output."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     token: str | None = typer.Option(None, "--token", help="GitHub API token."),
 ) -> None:
     """Show recent failed runs for a specific repository."""
