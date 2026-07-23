@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Both "failure" and "timed_out" are failure conclusions in GitHub Actions
 FAILURE_CONCLUSIONS = {"failure", "timed_out"}
 
+# Consistent truncation marker format: ... (detail) ...
+TRUNCATION_MARKER = "... ({detail}) ..."
+
 
 @dataclass
 class StepInfo:
@@ -98,13 +101,18 @@ def fetch_job_log(client: GitHubClient, owner_repo: str, job_id: int) -> str | N
             if len(lines) > 2000:
                 skipped = len(lines) - 2000
                 raw_log = "\n".join(
-                    [*lines[:1000], f"\n... (skipped {skipped} lines) ...", *lines[-1000:]]
+                    [
+                        *lines[:1000],
+                        TRUNCATION_MARKER.format(detail=f"skipped {skipped} lines"),
+                        *lines[-1000:],
+                    ]
                 )
             else:
                 # Few lines but huge payload; keep head+tail by character count
                 head = raw_log[: 5 * 1024 * 1024]
                 tail = raw_log[-5 * 1024 * 1024 :]
-                raw_log = head + "\n... (truncated) ...\n" + tail
+                marker = TRUNCATION_MARKER.format(detail="truncated, log > 10 MB")
+                raw_log = head + "\n" + marker + "\n" + tail
 
         return raw_log
 

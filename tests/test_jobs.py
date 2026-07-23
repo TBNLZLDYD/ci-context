@@ -104,7 +104,7 @@ class TestFetchJobLog(unittest.TestCase):
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNotNone(result)
-        # Should contain the truncation marker
+        # Should contain the truncation marker with line count
         self.assertIn("skipped 1000 lines", result)
         # Result should be significantly smaller than input
         self.assertLess(len(result), len(large_log))
@@ -123,7 +123,7 @@ class TestFetchJobLog(unittest.TestCase):
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNotNone(result)
         # Should contain the character-level truncation marker
-        self.assertIn("truncated", result)
+        self.assertIn("truncated, log > 10 MB", result)
         # Result should be significantly smaller than input
         self.assertLess(len(result), len(large_log))
 
