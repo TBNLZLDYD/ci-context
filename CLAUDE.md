@@ -69,7 +69,7 @@ CLI (Typer)
 | Package | Purpose |
 |---------|---------|
 | `cli/` | Typer commands. `main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run`/`recent`/`repo`. `cache.py` = `clear`/`stats`. `repo_utils.py` = git remote → owner/repo inference. |
-| `github/` | All GitHub API interaction. `client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI → config file → gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError, LogFetchError). |
+| `github/` | All GitHub API interaction. `client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI → config file → gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). |
 | `analysis/` | Log processing pipeline. `normalizer` → `extractor` → `fingerprint` → `matcher`. Patterns defined in `patterns.py` as `ErrorPattern` dataclasses with compiled regex. |
 | `models/` | Pure dataclasses. `report.py` owns `FailureReport` — the top-level composite that all context feeds into and renderers consume. |
 | `output/` | Render `FailureReport` → terminal (Rich) or JSON. |

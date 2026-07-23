@@ -45,7 +45,10 @@ class RateLimitError(CIContextError):
     def __init__(self, remaining: int, reset_time: datetime) -> None:
         self.remaining = remaining
         self.reset_time = reset_time
-        reset_str = reset_time.strftime("%H:%M UTC")
+        # Only append "UTC" if the datetime actually carries UTC tzinfo;
+        # naive datetimes get no timezone label to avoid misleading display
+        tz_label = " UTC" if reset_time.tzinfo is not None else ""
+        reset_str = reset_time.strftime("%H:%M") + tz_label
         self.message = (
             f"GitHub API rate limit hit. {remaining} calls remaining. "
             f"Retry after {reset_str}. Tip: use GITHUB_TOKEN for higher limits."
@@ -60,14 +63,4 @@ class RunNotFoundError(CIContextError):
         self.run_id = run_id
         self.repo = repo
         self.message = f"Run {run_id} not found in {repo}"
-        super().__init__(self.message)
-
-
-class LogFetchError(CIContextError):
-    """Job log could not be fetched."""
-
-    def __init__(self, job_id: int, reason: str = "Unknown error") -> None:
-        self.job_id = job_id
-        self.reason = reason
-        self.message = f"Could not fetch logs for job {job_id}: {reason}"
         super().__init__(self.message)
