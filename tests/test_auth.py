@@ -2,9 +2,16 @@
 
 import os
 import unittest
+import warnings
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from ci_context.github.auth import _gh_available, _read_config_token, resolve_token
+from ci_context.github.auth import (
+    _check_config_permissions,
+    _gh_available,
+    _read_config_token,
+    resolve_token,
+)
 from ci_context.github.exceptions import AuthError
 
 
@@ -73,6 +80,58 @@ class TestReadConfigToken(unittest.TestCase):
         """Should return None when config file does not exist."""
         result = _read_config_token()
         self.assertIsNone(result)
+
+
+class TestCheckConfigPermissions(unittest.TestCase):
+    """Test config file permission checking."""
+
+    @patch("os.name", "nt")
+    def test_skips_on_windows(self):
+        """Should skip permission check on Windows."""
+        # Windows uses ACLs; mode bits are meaningless, function should return immediately
+        _check_config_permissions(Path("/any/path"))  # No exception = pass
+
+    @unittest.skipIf(os.name == "nt", "Unix permission bits not meaningful on Windows")
+    def test_no_warn_on_restricted_file(self):
+        """Should not warn when config file is owner-only (0600)."""
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            temp_path = Path(tf.name)
+        try:
+            temp_path.chmod(0o600)
+            # Should not emit UserWarning
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                _check_config_permissions(temp_path)
+                user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
+                self.assertEqual(len(user_warnings), 0)
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    @unittest.skipIf(os.name == "nt", "Unix permission bits not meaningful on Windows")
+    def test_warns_on_world_readable_file(self):
+        """Should warn when config file is world-readable (0644)."""
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            temp_path = Path(tf.name)
+        try:
+            temp_path.chmod(0o644)
+            with self.assertWarns(UserWarning) as cm:
+                _check_config_permissions(temp_path)
+            self.assertIn("world-readable", str(cm.warning))
+            self.assertIn("chmod 600", str(cm.warning))
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_stat_failure_silently_ignored(self):
+        """Should not raise when stat() fails (e.g., file deleted between checks)."""
+        # Use a MagicMock instead of a real Path to avoid PosixPath/WindowsPath issues
+        mock_path = MagicMock()
+        mock_path.stat.side_effect = OSError("No such file")
+        with patch("os.name", "posix"):
+            _check_config_permissions(mock_path)  # No exception = pass
 
 
 if __name__ == "__main__":
