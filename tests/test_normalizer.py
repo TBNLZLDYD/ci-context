@@ -23,6 +23,18 @@ class TestNormalize(unittest.TestCase):
         result = normalize(raw)
         self.assertEqual(result[0].content, "Error: something failed")
 
+    def test_removes_gha_timestamp_without_microseconds(self):
+        """Should remove timestamps that lack the microseconds component."""
+        raw = "2026-07-16T10:30:00Z Error: something failed"
+        result = normalize(raw)
+        self.assertEqual(result[0].content, "Error: something failed")
+
+    def test_removes_gha_timestamp_with_offset(self):
+        """Should remove timestamps using a numeric offset instead of Z."""
+        raw = "2026-07-16T10:30:00.1234567+00:00 Error: something failed"
+        result = normalize(raw)
+        self.assertEqual(result[0].content, "Error: something failed")
+
     def test_removes_section_markers(self):
         """Should remove ##[section] markers."""
         raw = "##[section]\nSome output\n##[section]\nMore output"
@@ -30,6 +42,21 @@ class TestNormalize(unittest.TestCase):
         lines = [r.content for r in result]
         self.assertEqual(lines[0], "Some output")
         self.assertEqual(lines[1], "More output")
+
+    def test_removes_section_marker_with_inline_label(self):
+        """Should remove ##[section] lines even when a label follows with no space."""
+        raw = "##[section]Set up job\nrunning..."
+        result = normalize(raw)
+        lines = [r.content for r in result]
+        self.assertEqual(lines[0], "running...")
+
+    def test_removes_group_markers_with_inline_label(self):
+        """Should remove ::group::/::endgroup:: lines even with inline labels."""
+        raw = "::group::Build steps\nstep1\n::endgroup::\nafter"
+        result = normalize(raw)
+        lines = [r.content for r in result]
+        self.assertEqual(lines[0], "step1")
+        self.assertEqual(lines[1], "after")
 
     def test_preserves_original_line_numbers(self):
         """Should preserve original line numbers."""

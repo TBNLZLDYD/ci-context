@@ -7,10 +7,11 @@ from dataclasses import dataclass
 
 # Precompiled regex patterns
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-GHA_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+")
-SECTION_RE = re.compile(r"^##\[section\](\s|$)")
-GROUP_RE = re.compile(r"^::group::(\s|$)")
-ENDGROUP_RE = re.compile(r"^::endgroup::(\s|$)")
+# Matches GHA timestamp prefixes: with/without microseconds, with Z or offset
+GHA_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})\s+")
+SECTION_RE = re.compile(r"^##\[section\]")
+GROUP_RE = re.compile(r"^::group::")
+ENDGROUP_RE = re.compile(r"^::endgroup::")
 
 
 @dataclass
