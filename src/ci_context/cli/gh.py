@@ -1,5 +1,7 @@
 """`ci-context gh` sub-command group — GitHub Actions commands."""
 
+import logging
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -41,6 +43,15 @@ def run_command(
     token: str | None = typer.Option(None, "--token", help="GitHub API token."),
 ) -> None:
     """Analyze a single GitHub Actions run and generate a failure report."""
+    # Enable logging in verbose mode so fetch_job_log diagnostics are visible.
+    # force=True ensures our handler wins even if an imported library already set one up.
+    if verbose:
+        logging.basicConfig(
+            level=logging.WARNING,
+            format="%(levelname)s: %(name)s: %(message)s",
+            force=True,
+        )
+
     # 1. Resolve authentication
     try:
         resolved_token = resolve_token(token)
@@ -140,7 +151,13 @@ def _print_poc_report(
             # Show last 30 lines as preview
             lines = normalized.split("\n")
             preview = "\n".join(lines[-30:]) if len(lines) > 30 else normalized
-            console.print(Panel(preview[:2000], title=f"Log: {job.name}", border_style="dim"))
+            # Truncate at line boundary to avoid cutting mid-line
+            if len(preview) > 2000:
+                cut = preview.rfind("\n", 0, 2000)
+                if cut == -1:
+                    cut = 2000  # Single line > 2000 chars: hard-cut as last resort
+                preview = preview[:cut]
+            console.print(Panel(preview, title=f"Log: {job.name}", border_style="dim"))
         else:
             console.print(f"[dim]No log available for {job.name}[/dim]")
 
