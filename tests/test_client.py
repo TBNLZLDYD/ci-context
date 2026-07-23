@@ -1,6 +1,7 @@
 """Tests for GitHub API client."""
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from ci_context.github.client import GitHubClient
@@ -12,9 +13,9 @@ class TestGitHubClient(unittest.TestCase):
 
     def test_initialization_with_token(self):
         """Should initialize with token."""
-        client = GitHubClient("test-token", "owner/repo")
-        self.assertEqual(client.token, "test-token")
-        self.assertEqual(client.owner_repo, "owner/repo")
+        with GitHubClient("test-token", "owner/repo") as client:
+            self.assertEqual(client.token, "test-token")
+            self.assertEqual(client.owner_repo, "owner/repo")
 
     def test_context_manager(self):
         """Should work as context manager."""
@@ -27,7 +28,7 @@ class TestGitHubClient(unittest.TestCase):
         """Should not raise when rate limit is sufficient."""
         mock_rate = MagicMock()
         mock_rate.remaining = 100
-        mock_rate.reset.timestamp.return_value = 1234567890.0
+        mock_rate.reset = datetime(2026, 7, 21, 10, 30, 0, tzinfo=UTC)
         mock_github = MagicMock()
         mock_github.get_rate_limit.return_value.rate = mock_rate
         mock_github_cls.return_value = mock_github
@@ -40,14 +41,16 @@ class TestGitHubClient(unittest.TestCase):
         """Should raise RateLimitError when rate limit is exceeded."""
         mock_rate = MagicMock()
         mock_rate.remaining = 5
-        mock_rate.reset.timestamp.return_value = 1234567890.0
+        mock_rate.reset = datetime(2026, 7, 21, 10, 30, 0, tzinfo=UTC)
         mock_github = MagicMock()
         mock_github.get_rate_limit.return_value.rate = mock_rate
         mock_github_cls.return_value = mock_github
 
         client = GitHubClient("test-token")
-        with self.assertRaises(RateLimitError):
+        with self.assertRaises(RateLimitError) as ctx:
             client.check_rate_limit(min_remaining=10)
+        # Verify reset_time uses rate.reset directly, no timestamp round-trip
+        self.assertEqual(ctx.exception.reset_time, mock_rate.reset)
 
     @patch("ci_context.github.client.Github")
     def test_get_repo(self, mock_github_cls):
@@ -68,11 +71,22 @@ class TestRateLimitError(unittest.TestCase):
 
     def test_error_message_includes_reset_time(self):
         """Error message should include reset time."""
-        from datetime import datetime
-
         error = RateLimitError(5, datetime(2026, 7, 21, 10, 30, 0))
         self.assertIn("5", error.message)
         self.assertIn("10:30", error.message)
+
+    def test_error_message_utc_label_only_with_tzinfo(self):
+        """UTC label should only appear when reset_time has tzinfo."""
+        from datetime import UTC
+
+        # Naive datetime: no UTC label to avoid misleading display
+        naive = RateLimitError(5, datetime(2026, 7, 21, 10, 30, 0))
+        self.assertIn("10:30", naive.message)
+        self.assertNotIn("UTC", naive.message)
+
+        # Timezone-aware datetime: UTC label is appropriate
+        aware = RateLimitError(5, datetime(2026, 7, 21, 10, 30, 0, tzinfo=UTC))
+        self.assertIn("10:30 UTC", aware.message)
 
 
 if __name__ == "__main__":

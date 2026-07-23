@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import logging
 
 import httpx
 from github import Auth, Github
 from github.Repository import Repository
 
 from ci_context.github.exceptions import RateLimitError
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubClient:
@@ -80,9 +82,8 @@ class GitHubClient:
         """
         rate = self._pygithub.get_rate_limit().rate
         if rate.remaining < min_remaining:
-            # rate.reset is a datetime object, convert to timestamp float
-            reset_time = datetime.fromtimestamp(rate.reset.timestamp())
-            raise RateLimitError(rate.remaining, reset_time)
+            # rate.reset is already a datetime; no round-trip through timestamp needed
+            raise RateLimitError(rate.remaining, rate.reset)
 
     def get_repo(self, owner_repo: str) -> Repository:
         """Fetch a repository by 'owner/repo' string."""
