@@ -72,14 +72,23 @@ def run_command(
             # Fetch run info
             run_info = get_run(client, repo_str, run_id)
 
-            # Check if run is failure (unless --force)
-            if run_info.conclusion != "failure" and not force:
-                msg = (
-                    f"[green]Run {run_id} completed successfully.[/green] "
-                    "Use --force to analyze anyway."
-                )
-                console.print(msg)
-                raise typer.Exit(0)
+            # Distinguish in-progress / non-failure / failure so that
+            # conclusion=None (still running) is not misreported as success.
+            if not force:
+                if run_info.conclusion is None:
+                    console.print(
+                        f"[yellow]Run {run_id} is still in progress.[/yellow] "
+                        "Wait for it to finish or use --force to analyze anyway."
+                    )
+                    raise typer.Exit(0)
+                if run_info.conclusion != "failure":
+                    conclusion_display = run_info.conclusion or "unknown"
+                    console.print(
+                        f"[green]Run {run_id} concluded with "
+                        f"'{conclusion_display}'.[/green] "
+                        "Use --force to analyze anyway."
+                    )
+                    raise typer.Exit(0)
 
             # Fetch failed jobs
             failed_jobs = get_failed_jobs(client, repo_str, run_id)
@@ -90,6 +99,10 @@ def run_command(
     except RunNotFoundError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
+    except typer.Exit:
+        # typer.Exit inherits from RuntimeError -> Exception, so it would be
+        # swallowed by the generic except below; re-raise it explicitly.
+        raise
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         if verbose:
