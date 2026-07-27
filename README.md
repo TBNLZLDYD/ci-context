@@ -2,7 +2,9 @@
 
 > One command to get full CI failure context.
 
-**ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID, automatically fetches and synthesizes all relevant context into a readable failure diagnosis report — so you no longer spend 10–30 minutes manually digging through logs, commits, and PR comments.
+**ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID, automatically fetches and synthesizes all relevant context into a readable failure diagnosis report -- so you no longer spend 10-30 minutes manually digging through logs, commits, and PR comments.
+
+**Status: v0.1.0b1 (PoC)** -- The core data-fetching pipeline works; error extraction, commit/PR context, history matching, and structured rendering are under development. See [DDL](docs/DDL.md) and [Architecture](docs/architecture.html).
 
 ## Quick Start
 
@@ -10,30 +12,39 @@
 # Install
 pip install ci-context
 
-# Analyze a failed run
-ci-context gh run 12345
+# Analyze a failed run (core command, works now)
+ci-context gh run 12345 --repo owner/repo
 
-# Recent failures in current repo
+# Recent failures (coming soon)
 ci-context gh recent
 
-# Recent failures in a specific repo
+# Specific repository (coming soon)
 ci-context gh repo owner/repo
 ```
 
-## Features
+## What Works Now
 
-- **Error Extraction Engine** — Automatically extracts real errors from CI logs (Python, Node.js, Go, Java, Shell, and more)
-- **Commit Context** — Shows the diff summary of the commit that triggered the run
-- **PR Context** — If triggered by a PR, shows review status and latest comments
-- **History Pattern Matching** — Detects recurring errors across recent runs ("this error appeared 3 times in the past 30 days")
-- **Rich Terminal Output** — Colored, structured report in your terminal
-- **JSON Output** — `--json` flag for programmatic consumption
-- **Zero AI Dependency** — Deterministic, fast, no API keys needed (beyond GitHub auth)
+- **Authentication** -- `gh auth login`, config file, or `--token` flag
+- **Run info** -- Fetch workflow run details (status, conclusion, SHA, event, duration)
+- **Failed jobs** -- List failed jobs with step-level breakdown
+- **Log fetching** -- Download job logs with automatic truncation for large logs
+- **Log normalization** -- Strip ANSI codes, GHA timestamps, section/group markers
+- **PoC report** -- Inline Rich output showing run overview + normalized log tail
+
+## What's Coming
+
+- **Error extraction** -- Regex-based extraction of Python/Node/Go/Java/Shell errors
+- **Commit context** -- Diff summary of the triggering commit
+- **PR context** -- Review status and latest comments
+- **History pattern matching** -- "This error appeared 3 times in the past 30 days"
+- **Rich structured report** -- Full PRD-format report with all context sections
+- **JSON output** -- `--json` flag for programmatic consumption
+- **SQLite cache** -- Reduce API calls on repeated runs
 
 ## Requirements
 
 - Python 3.11+
-- GitHub authentication (`gh auth login` or `GITHUB_TOKEN` env var)
+- GitHub authentication (`gh auth login` or `--token` flag)
 
 ## Installation
 
@@ -41,7 +52,7 @@ ci-context gh repo owner/repo
 # pip
 pip install ci-context
 
-# pipx (recommended — isolated environment)
+# pipx (recommended -- isolated environment)
 pipx install ci-context
 ```
 
@@ -50,26 +61,14 @@ pipx install ci-context
 ### Analyze a specific run
 
 ```bash
-ci-context gh run 12345
+ci-context gh run 12345 --repo owner/repo
 ```
 
-### Recent failures in current repo
+### Auto-detect repository
 
 ```bash
 cd your-repo
-ci-context gh recent
-```
-
-### Specific repository
-
-```bash
-ci-context gh repo owner/repo
-```
-
-### JSON output
-
-```bash
-ci-context gh run 12345 --json
+ci-context gh run 12345
 ```
 
 ### Options
@@ -77,15 +76,16 @@ ci-context gh run 12345 --json
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--repo` | `-r` | Repository (owner/repo). Auto-detected from git remote. |
-| `--json` | `-j` | Output as JSON |
-| `--no-color` | | Disable colored output |
-| `--verbose` | `-v` | Verbose output |
-| `--token` | | GitHub API token |
 | `--force` | | Analyze non-failure runs |
-| `--no-history` | | Skip history pattern matching |
-| `--no-pr` | | Skip PR context fetching |
+| `--verbose` | `-v` | Verbose output (DEBUG-level logging) |
+| `--token` | | GitHub API token |
+| `--json` | `-j` | Output as JSON (coming soon) |
+| `--no-color` | | Disable colored output (coming soon) |
+| `--no-history` | | Skip history pattern matching (coming soon) |
+| `--no-pr` | | Skip PR context fetching (coming soon) |
 | `--max-history` | | Number of historical runs (default: 30) |
 | `--error-lines` | | Raw log lines per error (default: 5) |
+| `--attempt` | | Attempt number (default: latest) |
 
 ## License
 

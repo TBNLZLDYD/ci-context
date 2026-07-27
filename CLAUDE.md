@@ -6,7 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID, fetches and synthesizes all relevant context (errors, commit diff, PR reviews, history patterns) into a single readable report. Deterministic, zero AI dependency, local-first.
 
-Full PRD lives at `ci-context-PRD.md`.
+Full PRD lives at `docs/ci-context-PRD.md`. Development DDL at `docs/DDL.md`. Architecture diagram at `docs/architecture.html`.
+
+## Current Status: PoC Phase
+
+The project is in PoC stage. Only the data-fetching pipeline works end-to-end; the analysis pipeline and structured rendering are stubs.
+
+**What works**: auth -> client -> runs -> jobs -> log fetch -> normalizer -> inline PoC report
+**What's stub**: extractor, patterns, fingerprint, matcher, commits, prs, renderers, cache, config
+
+See `docs/architecture.html` for the full target vs current architecture comparison.
 
 ## Commands
 
@@ -39,49 +48,70 @@ uv run python -m ci_context
 
 ## Architecture
 
-### Data Flow
+### Data Flow (Target)
 
 ```
 CLI (Typer)
-  → github/auth.py (token: CLI arg → config file → gh auth token)
-  → github/client.py (PyGithub + httpx wrapper with rate-limit)
-    → github/{runs,jobs,commits,prs}.py (module functions, receive client as first arg)
-  → analysis/normalizer.py (strip ANSI/timestamps/noise from raw logs)
-  → analysis/extractor.py (multi-pattern regex error extraction)
-  → analysis/fingerprint.py (normalize + SHA256 hash for matching)
-  → analysis/matcher.py (find recurring errors across historical runs)
-  → models/report.py → FailureReport (composite of all context)
-  → output/{rich_renderer,json_renderer}.py
+  -> github/auth.py (token: CLI arg -> config file -> gh auth token)
+  -> github/client.py (PyGithub + httpx wrapper with rate-limit)
+    -> github/{runs,jobs,commits,prs}.py (module functions, receive client as first arg)
+  -> analysis/normalizer.py (strip ANSI/timestamps/noise from raw logs)
+  -> analysis/extractor.py (multi-pattern regex error extraction)
+  -> analysis/fingerprint.py (normalize + SHA256 hash for matching)
+  -> analysis/matcher.py (find recurring errors across historical runs)
+  -> models/report.py -> FailureReport (composite of all context)
+  -> output/{rich_renderer,json_renderer}.py
+```
+
+### Data Flow (Current PoC)
+
+```
+CLI (Typer)
+  -> github/auth.py (token resolution)
+  -> github/client.py (PyGithub + httpx)
+  -> github/runs.py (get_run)
+  -> github/jobs.py (get_failed_jobs + fetch_job_log)
+  -> analysis/normalizer.py (normalize_to_text)
+  -> cli/gh.py::_print_poc_report() (inline Rich: last 30 lines of normalized log)
 ```
 
 ### Key Design Decisions
 
-- **PyGithub over `gh` CLI wrapper** — type safety, no external tool dependency, finer API control
-- **Module functions over client methods** — `runs.py`/`jobs.py` etc. are standalone functions that receive `GitHubClient` as first arg, keeping client thin
-- **GitHubClient owns two HTTP engines** — `_pygithub` (PyGithub for typed API) + `_httpx_client` (httpx for job log downloads that PyGithub doesn't support)
-- **Regex extraction over AI** — deterministic, zero cost, fast, auditable
-- **SQLite cache** over JSON files — structured queries, indexing, atomic writes; lives at `~/.cache/ci-context/history.db`
-- **Python 3.11 minimum** — uses `tomllib`, `match` statements, modern type hints
-- **Token from config file** — `~/.config/ci-context/config.toml` (or `%APPDATA%/ci-context/config.toml` on Windows), NOT from env vars
+- **PyGithub over `gh` CLI wrapper** -- type safety, no external tool dependency, finer API control
+- **Module functions over client methods** -- `runs.py`/`jobs.py` etc. are standalone functions that receive `GitHubClient` as first arg, keeping client thin
+- **GitHubClient owns two HTTP engines** -- `_pygithub` (PyGithub for typed API) + `_httpx_client` (httpx for job log downloads that PyGithub doesn't support)
+- **Regex extraction over AI** -- deterministic, zero cost, fast, auditable
+- **SQLite cache** over JSON files -- structured queries, indexing, atomic writes; lives at `~/.cache/ci-context/history.db`
+- **Python 3.11 minimum** -- uses `tomllib`, `match` statements, modern type hints
+- **Token from config file** -- `~/.config/ci-context/config.toml` (or `%APPDATA%/ci-context/config.toml` on Windows), NOT from env vars
 
 ### Module Map
 
-| Package | Purpose |
-|---------|---------|
-| `cli/` | Typer commands. `main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run`/`recent`/`repo`. `cache.py` = `clear`/`stats`. `repo_utils.py` = git remote → owner/repo inference. |
-| `github/` | All GitHub API interaction. `client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI → config file → gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). |
-| `analysis/` | Log processing pipeline. `normalizer` → `extractor` → `fingerprint` → `matcher`. Patterns defined in `patterns.py` as `ErrorPattern` dataclasses with compiled regex. |
-| `models/` | Pure dataclasses. `report.py` owns `FailureReport` — the top-level composite that all context feeds into and renderers consume. |
-| `output/` | Render `FailureReport` → terminal (Rich) or JSON. |
-| `cache/` | SQLite for error fingerprints + run metadata. Reduces API calls on repeated runs. |
+| Package | Purpose | Status |
+|---------|---------|--------|
+| `cli/` | Typer commands. `main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (PoC) / `recent` (stub) / `repo` (stub). `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = git remote -> owner/repo inference. | Partial |
+| `github/` | All GitHub API interaction. `client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = stub. | Partial |
+| `analysis/` | Log processing pipeline. `normalizer` = implemented. `patterns` -> `extractor` -> `fingerprint` -> `matcher` = all stub. | Partial |
+| `models/` | Pure dataclasses. All defined: `WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`. | Done |
+| `output/` | Render `FailureReport` -> terminal (Rich) or JSON. Both stub. | Stub |
+| `cache/` | SQLite for error fingerprints + run metadata. Stub. | Stub |
+| `config/` | TOML config management. Stub. | Stub |
 
-### Error Extraction Pipeline
+### Error Extraction Pipeline (Target)
 
-1. `normalizer.py` — strip ANSI codes, GHA timestamp prefixes, `##[section]`/`::group::`/`::endgroup::` markers; collapse consecutive blank lines; preserve original line numbers
-2. `patterns.py` — `ErrorPattern` dataclass: `start_pattern` (detect block start) → `message_pattern` (extract message) → `location_pattern` (extract file:line) → `end_condition` (block boundary)
-3. `extractor.py` — scan log tail-first, match patterns, deduplicate by (error_type + message), assign confidence (high/medium/low), cap at 10 errors
-4. `fingerprint.py` — normalize values in error messages (numbers→`<NUM>`, paths→`<ROOT>/`, SHAs→`<SHA>`), lowercase, SHA256 first 16 hex chars
-5. `matcher.py` — compare fingerprints across last N workflow runs; exact match → `[EXACT]`, Levenshtein similarity > 0.8 → `[SIMILAR]`, else → `[NEW]`
+1. `normalizer.py` -- strip ANSI codes, GHA timestamp prefixes, `##[section]`/`::group::`/`::endgroup::` markers; collapse consecutive blank lines; preserve original line numbers
+2. `patterns.py` -- `ErrorPattern` dataclass: `start_pattern` (detect block start) -> `message_pattern` (extract message) -> `location_pattern` (extract file:line) -> `end_condition` (block boundary)
+3. `extractor.py` -- scan log tail-first, match patterns, deduplicate by (error_type + message), assign confidence (high/medium/low), cap at 10 errors
+4. `fingerprint.py` -- normalize values in error messages (numbers->`<NUM>`, paths->`<ROOT>/`, SHAs->`<SHA>`), lowercase, SHA256 first 16 hex chars
+5. `matcher.py` -- compare fingerprints across last N workflow runs; exact match -> `[EXACT]`, Levenshtein similarity > 0.8 -> `[SIMILAR]`, else -> `[NEW]`
+
+## Known Bugs
+
+| Bug | Location | Impact |
+|-----|----------|--------|
+| SSL proxy block | `client.py` httpx/PyGithub not set `trust_env=False` | System proxy (Clash) causes CERTIFICATE_VERIFY_FAILED on Windows |
+| in_progress misreported as success | `gh.py:76` `conclusion != "failure"` | conclusion=None (in_progress) treated as success |
+| 6 CLI options not wired | `gh.py` run_command | --json/--no-color/--no-history/--no-pr/--attempt/--error-lines accepted but no effect |
 
 ## Conventions
 
