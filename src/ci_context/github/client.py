@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import httpx
 from github import Auth, Github
@@ -11,6 +12,13 @@ from github.Repository import Repository
 from ci_context.github.exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
+
+# Proxy env vars that requests/httpx auto-detect; stripping them prevents
+# system proxies (e.g., Clash on Windows) from causing SSL CERTIFICATE_VERIFY_FAILED.
+_PROXY_ENV_KEYS = (
+    "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
+    "no_proxy", "NO_PROXY", "all_proxy", "ALL_PROXY",
+)
 
 
 class GitHubClient:
@@ -35,6 +43,11 @@ class GitHubClient:
         """
         self._token = token
         self._owner_repo = owner_repo
+        # PyGithub lazily creates its requests.Session on first API call, so
+        # stripping proxy env vars only during Github() construction is insufficient.
+        # We must keep them stripped for the client's entire lifetime; they are
+        # restored in close() so the rest of the process is unaffected.
+        self._saved_proxy_env = _strip_proxy_env()
         self._pygithub = Github(auth=Auth.Token(token))
         self._httpx_client = httpx.Client(
             base_url="https://api.github.com",
@@ -44,6 +57,7 @@ class GitHubClient:
             },
             timeout=10.0,
             follow_redirects=True,
+            trust_env=False,
         )
 
     @property
@@ -90,8 +104,9 @@ class GitHubClient:
         return self._pygithub.get_repo(owner_repo)
 
     def close(self) -> None:
-        """Close httpx client connection."""
+        """Close httpx client connection and restore proxy env vars."""
         self._httpx_client.close()
+        _restore_proxy_env(self._saved_proxy_env)
 
     def __enter__(self) -> GitHubClient:
         return self
@@ -104,3 +119,24 @@ class GitHubClient:
     ) -> None:
         self.close()
         return None
+
+
+def _strip_proxy_env() -> dict[str, str]:
+    """Remove proxy env vars from os.environ and return the saved values.
+
+    This is needed because PyGithub's underlying requests library auto-detects
+    system proxy settings from env vars, and on Windows with tools like Clash
+    this causes SSL CERTIFICATE_VERIFY_FAILED errors. We strip the vars only
+    during Github() construction so the rest of the process is unaffected.
+    """
+    saved: dict[str, str] = {}
+    for key in _PROXY_ENV_KEYS:
+        val = os.environ.pop(key, None)
+        if val is not None:
+            saved[key] = val
+    return saved
+
+
+def _restore_proxy_env(saved: dict[str, str]) -> None:
+    """Restore proxy env vars that were previously stripped."""
+    os.environ.update(saved)
