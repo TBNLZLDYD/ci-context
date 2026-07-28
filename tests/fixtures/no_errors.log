@@ -1,0 +1,26 @@
+Setting up CI environment...
+Cloning repository...
+Installing dependencies...
+pip install -r requirements.txt
+Collecting pytest
+Collecting ruff
+Installing collected packages: pytest, ruff
+
+Running tests with pytest...
+Collecting test items...
+collected 42 items
+
+tests/test_parser.py::test_parse_int PASSED
+tests/test_parser.py::test_parse_float PASSED
+tests/test_parser.py::test_parse_empty PASSED
+tests/test_utils.py::test_helper PASSED
+
+Running lint checks...
+ruff check src/ --fix
+All checks passed!
+
+Running type checks...
+mypy src/
+Success: no issues found in 12 source files
+
+All tests passed. Build successful.

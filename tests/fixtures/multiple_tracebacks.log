@@ -1,0 +1,63 @@
+Running full test suite...
+
+Traceback (most recent call last):
+  File "src/types.py", line 8, in coerce
+    return str(value)
+TypeError: expected str, got int
+
+Traceback (most recent call last):
+  File "src/lookup.py", line 22, in get_item
+    return data[key]
+KeyError: 'user_id'
+
+Traceback (most recent call last):
+  File "src/model.py", line 55, in serialize
+    return obj.name
+AttributeError: 'NoneType' object has no attribute 'name'
+
+Traceback (most recent call last):
+  File "src/cache.py", line 10, in connect
+    redis.ping()
+ConnectionError: Connection refused
+
+Traceback (most recent call last):
+  File "src/db.py", line 3, in init
+    cursor.execute(query)
+OperationalError: no such table: users
+
+Traceback (most recent call last):
+  File "src/api.py", line 99, in fetch
+    response.raise_for_status()
+HTTPError: 503 Service Unavailable
+
+Traceback (most recent call last):
+  File "src/validate.py", line 14, in check
+    assert len(items) > 0
+AssertionError
+
+Traceback (most recent call last):
+  File "src/io.py", line 7, in read
+    return f.read()
+OSError: [Errno 28] No space left on device
+
+Traceback (most recent call last):
+  File "src/encoding.py", line 5, in decode
+    return raw.decode('utf-8')
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff
+
+Traceback (most recent call last):
+  File "src/scheduler.py", line 30, in next_run
+    return times[0]
+IndexError: list index out of range
+
+Traceback (most recent call last):
+  File "src/config.py", line 12, in load
+    return toml.loads(text)
+SyntaxError: invalid syntax in config.toml
+
+Traceback (most recent call last):
+  File "src/runner.py", line 44, in execute
+    subprocess.run(cmd, check=True)
+RuntimeError: Process exited with code 1
+
+Build finished.

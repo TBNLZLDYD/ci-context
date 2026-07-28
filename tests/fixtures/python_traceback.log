@@ -1,0 +1,34 @@
+Running tests with pytest...
+Collecting test items...
+
+collected 42 items
+
+tests/test_parser.py::test_parse_int
+tests/test_parser.py::test_parse_float
+tests/test_parser.py::test_parse_empty
+
+Traceback (most recent call last):
+  File "src/parser.py", line 42, in parse_value
+    return int(raw_value)
+ValueError: invalid literal for int() with base 10: 'abc'
+
+tests/test_parser.py::test_parse_float PASSED
+tests/test_parser.py::test_parse_empty PASSED
+
+Installing dependencies...
+pip install requests
+
+ModuleNotFoundError: No module named 'requests'
+
+FAILED tests/test_parser.py::test_parse_int - ValueError: invalid literal for int()
+
+Running lint checks...
+ruff check src/ --fix
+All checks passed!
+
+Traceback (most recent call last):
+  File "src/parser.py", line 42, in parse_value
+    return int(raw_value)
+ValueError: invalid literal for int() with base 10: 'abc'
+
+Build completed with errors.

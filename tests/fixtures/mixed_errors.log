@@ -1,0 +1,24 @@
+Setting up CI environment...
+Node version: 18.17.0
+Python version: 3.11.5
+
+Running Python tests...
+
+Traceback (most recent call last):
+  File "src/app.py", line 15, in load_config
+    with open(path) as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'config.json'
+
+Running Node build step...
+
+Error: Cannot find module './utils'
+    at Object.<anonymous> (/home/runner/project/src/index.js:10:25)
+    at Module._compile (internal/modules/cjs/loader.js:1085:14)
+
+npm ERR! missing script: "build"
+
+FAILED tests/test_app.py::test_load_config - FileNotFoundError
+
+FAIL src/__tests__/api.test.js
+
+Pipeline finished with errors.

@@ -1,0 +1,22 @@
+Running Jest tests...
+
+PASS src/__tests__/utils.test.js
+PASS src/__tests__/helpers.test.js
+
+Error: Cannot find module './utils'
+    at Object.<anonymous> (/home/runner/project/src/index.js:10:25)
+    at Module._compile (internal/modules/cjs/loader.js:1085:14)
+    at Object.Module._extensions..js (internal/modules/cjs/loader.js:1094:10)
+
+Running npm scripts...
+npm run build
+
+npm ERR! missing script: "build"
+
+npm ERR! A complete log of this run can be found in:
+npm ERR! /home/runner/.npm/_logs/2024-01-15T10-30-00_123Z-debug.log
+
+FAIL src/__tests__/api.test.js
+
+Test Suites: 1 failed, 2 passed, 3 total
+Tests:       3 failed, 12 passed, 15 total
