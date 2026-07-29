@@ -4,7 +4,7 @@
 
 **ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID, automatically fetches and synthesizes all relevant context into a readable failure diagnosis report -- so you no longer spend 10-30 minutes manually digging through logs, commits, and PR comments.
 
-**Status: v0.1.0b1 (PoC)** -- The core data-fetching pipeline works; error extraction, commit/PR context, history matching, and structured rendering are under development. See [DDL](docs/DDL.md) and [Architecture](docs/architecture.html).
+**Status: v0.1.0b1 (PoC)** -- The core data-fetching pipeline works; error extraction, commit/PR context, history matching, and structured rendering are under development.
 
 ## Quick Start
 

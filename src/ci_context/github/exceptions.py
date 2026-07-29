@@ -51,7 +51,7 @@ class RateLimitError(CIContextError):
         reset_str = reset_time.strftime("%H:%M") + tz_label
         self.message = (
             f"GitHub API rate limit hit. {remaining} calls remaining. "
-            f"Retry after {reset_str}. Tip: use GITHUB_TOKEN for higher limits."
+            f"Retry after {reset_str}. Tip: use --token option or configure token in config file for higher limits."
         )
         super().__init__(self.message)
 

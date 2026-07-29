@@ -4,7 +4,7 @@
 
 **ci-context** 是一个 Python CLI 工具，给定失败的 GitHub Actions run ID，自动获取并综合所有相关上下文，生成可读的失败诊断报告 -- 让你不再花 10-30 分钟手动翻日志、查 commits、找 PR 评论。
 
-**状态：v0.1.0b1 (PoC)** -- 核心数据获取管道已可用；错误提取、commit/PR 上下文、历史匹配、结构化渲染正在开发中。详见 [DDL](docs/DDL.md) 和 [架构图](docs/architecture.html)。
+**状态：v0.1.0b1 (PoC)** -- 核心数据获取管道已可用；错误提取、commit/PR 上下文、历史匹配、结构化渲染正在开发中。
 
 ## 快速开始
 
@@ -73,19 +73,19 @@ ci-context gh run 12345
 
 ### 选项
 
-| 选项 | 短选项 | 描述 |
-|------|--------|------|
-| `--repo` | `-r` | 仓库 (owner/repo)。从 git remote 自动推断。 |
-| `--force` | | 分析非失败 run |
-| `--verbose` | `-v` | 详细输出（DEBUG 级别日志） |
-| `--token` | | GitHub API token |
-| `--json` | `-j` | JSON 输出（即将支持） |
-| `--no-color` | | 禁用彩色输出（即将支持） |
-| `--no-history` | | 跳过历史模式匹配（即将支持） |
-| `--no-pr` | | 跳过 PR 上下文获取（即将支持） |
-| `--max-history` | | 历史运行数量（默认：30） |
-| `--error-lines` | | 每个错误的原始日志行数（默认：5） |
-| `--attempt` | | Attempt 编号（默认：最新） |
+| 选项              | 短选项 | 描述                                        |
+| ----------------- | ------ | ------------------------------------------- |
+| `--repo`        | `-r` | 仓库 (owner/repo)。从 git remote 自动推断。 |
+| `--force`       |        | 分析非失败 run                              |
+| `--verbose`     | `-v` | 详细输出（DEBUG 级别日志）                  |
+| `--token`       |        | GitHub API token                            |
+| `--json`        | `-j` | JSON 输出（即将支持）                       |
+| `--no-color`    |        | 禁用彩色输出（即将支持）                    |
+| `--no-history`  |        | 跳过历史模式匹配（即将支持）                |
+| `--no-pr`       |        | 跳过 PR 上下文获取（即将支持）              |
+| `--max-history` |        | 历史运行数量（默认：30）                    |
+| `--error-lines` |        | 每个错误的原始日志行数（默认：5）           |
+| `--attempt`     |        | Attempt 编号（默认：最新）                  |
 
 ## 许可证
 

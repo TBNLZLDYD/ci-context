@@ -6,16 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID, fetches and synthesizes all relevant context (errors, commit diff, PR reviews, history patterns) into a single readable report. Deterministic, zero AI dependency, local-first.
 
-Full PRD lives at `docs/ci-context-PRD.md`. Development DDL at `docs/DDL.md`. Architecture diagram at `docs/architecture.html`.
-
 ## Current Status: PoC Phase
 
-The project is in PoC stage. Only the data-fetching pipeline works end-to-end; the analysis pipeline and structured rendering are stubs.
+The project is in PoC stage. Data-fetching pipeline works end-to-end; analysis pipeline partially implemented (normalizer + patterns + extractor done, fingerprint + matcher still stub); structured rendering is stub.
 
 **What works**: auth -> client -> runs -> jobs -> log fetch -> normalizer -> inline PoC report
-**What's stub**: extractor, patterns, fingerprint, matcher, commits, prs, renderers, cache, config
-
-See `docs/architecture.html` for the full target vs current architecture comparison.
+**What's stub**: fingerprint, matcher, commits, prs, renderers, cache, config
 
 ## Commands
 
@@ -87,15 +83,15 @@ CLI (Typer)
 
 ### Module Map
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `cli/` | Typer commands. `main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (PoC) / `recent` (stub) / `repo` (stub). `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = git remote -> owner/repo inference. | Partial |
-| `github/` | All GitHub API interaction. `client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = stub. | Partial |
-| `analysis/` | Log processing pipeline. `normalizer` = implemented. `patterns` -> `extractor` -> `fingerprint` -> `matcher` = all stub. | Partial |
-| `models/` | Pure dataclasses. All defined: `WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`. | Done |
-| `output/` | Render `FailureReport` -> terminal (Rich) or JSON. Both stub. | Stub |
-| `cache/` | SQLite for error fingerprints + run metadata. Stub. | Stub |
-| `config/` | TOML config management. Stub. | Stub |
+| Package       | Purpose                                                                                                                                                                                                                                                                                                                              | Status  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (PoC) / `recent` (stub) / `repo` (stub). `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference).                                                                               | Partial |
+| `github/`   | All GitHub API interaction.`client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = stub. | Partial |
+| `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` -> `matcher` = stub.                                                                                                                                                                                | Partial |
+| `models/`   | Pure dataclasses. All defined:`WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`.                                                                                                                                                                           | Done    |
+| `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both stub.                                                                                                                                                                                                                                                                       | Stub    |
+| `cache/`    | SQLite for error fingerprints + run metadata. Stub.                                                                                                                                                                                                                                                                                  | Stub    |
+| `config/`   | TOML config management. Stub.                                                                                                                                                                                                                                                                                                        | Stub    |
 
 ### Error Extraction Pipeline (Target)
 
@@ -107,11 +103,10 @@ CLI (Typer)
 
 ## Known Bugs
 
-| Bug | Location | Impact |
-|-----|----------|--------|
-| SSL proxy block | `client.py` httpx/PyGithub not set `trust_env=False` | System proxy (Clash) causes CERTIFICATE_VERIFY_FAILED on Windows |
-| in_progress misreported as success | `gh.py:76` `conclusion != "failure"` | conclusion=None (in_progress) treated as success |
-| 6 CLI options not wired | `gh.py` run_command | --json/--no-color/--no-history/--no-pr/--attempt/--error-lines accepted but no effect |
+| Bug                                        | Location              | Impact                                                                                                                            |
+| ------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 6 CLI options not wired                    | `gh.py` run_command | --json/--no-color/--no-history/--no-pr/--attempt/--error-lines accepted but no effect                                             |
+| timed_out/cancelled misreported as success | `gh.py` run_command | conclusion="timed_out"/"cancelled" treated as non-failure, exits without analysis (inconsistent with jobs.py FAILURE_CONCLUSIONS) |
 
 ## Conventions
 
