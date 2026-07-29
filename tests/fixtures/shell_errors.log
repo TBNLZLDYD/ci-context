@@ -1,0 +1,32 @@
+Setting up build environment...
+docker build -t myapp:latest .
+
+Step 1/8 : FROM node:18-alpine
+ ---> abc123def456
+Step 2/8 : WORKDIR /app
+ ---> Using cache
+Step 3/8 : COPY package*.json ./
+ ---> Using cache
+Step 4/8 : RUN npm ci
+ ---> Running in a1b2c3d4e5f6
+ERROR: failed to solve: process "/bin/sh -c npm ci" did not complete successfully: exit code 1
+
+make build
+gcc -c -o main.o main.c
+gcc -c -o utils.o utils.c
+make: *** [build] Error 2
+
+Running deployment script...
+Permission denied: './deploy.sh'
+
+Error: process exited with code 1
+
+bash: somecommand: command not found
+
+Running integration tests...
+./run_tests.sh
+All 50 tests passed.
+
+Segmentation fault (core dumped)
+
+Build pipeline finished.

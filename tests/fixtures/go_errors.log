@@ -1,0 +1,29 @@
+Running Go tests...
+go test -v ./...
+
+=== RUN   TestParser
+--- PASS: TestParser (0.01s)
+=== RUN   TestConfig
+--- PASS: TestConfig (0.02s)
+=== RUN   TestHandler
+panic: runtime error: index out of range [5] with length 3
+goroutine 1 [running]:
+github.com/example/app/pkg/handler.Process(0xc0001a2000, 0x3, 0x5)
+	/home/runner/work/app/pkg/handler/handler.go:87 +0x3a
+github.com/example/app/pkg/handler.HandleRequest(0xc0001a2000)
+	/home/runner/work/app/pkg/handler/handler.go:42 +0x1c
+main.main()
+	/home/runner/work/app/cmd/server/main.go:15 +0x85
+
+FAIL	github.com/example/app/pkg/handler	0.034s
+
+Building project...
+go build -o bin/server ./cmd/server
+
+./main.go:10:2: undefined: someFunc
+./parser.go:25: syntax error: unexpected }
+
+go vet ./...
+vet: ./handler.go:50:7: fmt.Printf format %d has arg of wrong type string
+
+All tests and build completed.

@@ -132,6 +132,238 @@ class TestNodeErrors(unittest.TestCase):
         self.assertEqual(build_err[0].confidence, "medium")
 
 
+class TestGoErrors(unittest.TestCase):
+    """Go-specific error patterns: panic with stack trace, build/compile errors."""
+
+    def test_extracts_go_panic_with_location(self) -> None:
+        """Go panic yields error_type, message, file_location from first stack frame."""
+        log = _load_fixture("go_errors.log")
+        errors = extract_errors(log, language="go")
+
+        panics = [e for e in errors if e.error_type == "Go panic"]
+        self.assertGreaterEqual(len(panics), 1)
+
+        err = panics[0]
+        self.assertIn("runtime error: index out of range", err.message)
+        # Location from the first .go:line+0x... stack frame in the block.
+        self.assertIn("handler.go:87", err.file_location or "")
+        self.assertEqual(err.confidence, "high")
+
+    def test_extracts_go_build_error_with_location(self) -> None:
+        """Go build error yields error_type, message, file:line location, confidence=high."""
+        log = _load_fixture("go_errors.log")
+        errors = extract_errors(log, language="go")
+
+        build_errs = [e for e in errors if e.error_type == "Go build error"]
+        self.assertGreaterEqual(len(build_errs), 1)
+
+        # The fixture has two distinct build errors; verify at least one.
+        err = build_errs[0]
+        # Message should contain the compiler diagnostic text.
+        self.assertTrue(
+            "undefined: someFunc" in err.message
+            or "syntax error" in err.message,
+            f"Expected build error message, got: {err.message!r}",
+        )
+        # Build errors embed file:line:col in the line itself.
+        self.assertIsNotNone(err.file_location)
+        self.assertEqual(err.confidence, "high")
+
+
+class TestJavaErrors(unittest.TestCase):
+    """Java-specific error patterns: Exception with stack trace, compilation errors."""
+
+    def test_extracts_java_exception_with_location(self) -> None:
+        """Java Exception yields error_type, class name, file:line location, confidence=high."""
+        log = _load_fixture("java_errors.log")
+        errors = extract_errors(log, language="java")
+
+        exceptions = [e for e in errors if e.error_type == "Java Exception"]
+        self.assertGreaterEqual(len(exceptions), 1)
+
+        err = exceptions[0]
+        # extract_message returns group(1) — the fully-qualified exception class.
+        self.assertIn("ServiceException", err.message)
+        # Location from the first "at" frame with a source file reference.
+        self.assertEqual(err.file_location, "DatabaseService.java:42")
+        self.assertEqual(err.confidence, "high")
+
+    def test_extracts_java_compilation_error_with_location(self) -> None:
+        """Java compilation error yields error_type, message, file:line, confidence=high."""
+        log = _load_fixture("java_errors.log")
+        errors = extract_errors(log, language="java")
+
+        comp_errs = [e for e in errors if e.error_type == "Java compilation error"]
+        self.assertGreaterEqual(len(comp_errs), 1)
+
+        # The fixture has two distinct compilation errors; verify at least one.
+        err = comp_errs[0]
+        self.assertTrue(
+            "';' expected" in err.message
+            or "cannot find symbol" in err.message,
+            f"Expected compilation error message, got: {err.message!r}",
+        )
+        # Compilation errors embed file:line before the "error:" keyword.
+        self.assertIsNotNone(err.file_location)
+        self.assertEqual(err.confidence, "high")
+
+
+class TestShellErrors(unittest.TestCase):
+    """Shell/generic error patterns: exit codes, make, docker, permission, etc."""
+
+    def test_extracts_shell_exit_code(self) -> None:
+        """Shell exit code error extracted with no location, confidence=medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        exit_errs = [e for e in errors if e.error_type == "Shell exit code"]
+        self.assertGreaterEqual(len(exit_errs), 1)
+
+        err = exit_errs[0]
+        self.assertIn("exited with code", err.message)
+        # Process-level errors have no source file location.
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_makefile_error(self) -> None:
+        """Makefile error extracted with target info, no location, confidence=medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        make_errs = [e for e in errors if e.error_type == "Makefile error"]
+        self.assertGreaterEqual(len(make_errs), 1)
+
+        err = make_errs[0]
+        # Message contains the bracketed target and error code.
+        self.assertIn("[build]", err.message)
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_docker_error(self) -> None:
+        """Docker ERROR: line extracted with no location, confidence=medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        docker_errs = [e for e in errors if e.error_type == "Docker error"]
+        self.assertGreaterEqual(len(docker_errs), 1)
+
+        err = docker_errs[0]
+        self.assertIn("failed to solve", err.message)
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_permission_denied(self) -> None:
+        """Permission denied error extracted with no location, confidence=medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        perm_errs = [e for e in errors if e.error_type == "Permission denied"]
+        self.assertGreaterEqual(len(perm_errs), 1)
+
+        err = perm_errs[0]
+        # Message regex captures text after "Permission denied".
+        self.assertIn("deploy.sh", err.message)
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_command_not_found(self) -> None:
+        """Command not found error extracted with command name, no location, medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        cmd_errs = [e for e in errors if e.error_type == "Command not found"]
+        self.assertGreaterEqual(len(cmd_errs), 1)
+
+        err = cmd_errs[0]
+        # Message regex group(1) is the command name.
+        self.assertEqual(err.message, "somecommand")
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_segmentation_fault(self) -> None:
+        """Segmentation fault extracted with no location, confidence=medium."""
+        log = _load_fixture("shell_errors.log")
+        errors = extract_errors(log)
+
+        segv_errs = [e for e in errors if e.error_type == "Segmentation fault"]
+        self.assertGreaterEqual(len(segv_errs), 1)
+
+        err = segv_errs[0]
+        self.assertIn("Segmentation fault", err.message)
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+
+class TestMixedLanguageExtraction(unittest.TestCase):
+    """Cross-language extraction: mixed logs and language filtering."""
+
+    def test_mixed_go_java_extracts_both(self) -> None:
+        """A log with Go+Java errors yields error types from both languages."""
+        # Combine Go and Java fixtures into one virtual log.
+        go_log = _load_fixture("go_errors.log")
+        java_log = _load_fixture("java_errors.log")
+        combined = go_log + "\n" + java_log
+
+        errors = extract_errors(combined)
+        types = {e.error_type for e in errors}
+
+        go_types = {t for t in types if "Go" in t}
+        java_types = {t for t in types if "Java" in t}
+        self.assertGreaterEqual(
+            len(go_types), 1, "Expected at least one Go error type",
+        )
+        self.assertGreaterEqual(
+            len(java_types), 1, "Expected at least one Java error type",
+        )
+
+    def test_mixed_python_shell_extracts_both(self) -> None:
+        """A log with Python+Shell errors yields error types from both families."""
+        py_log = _load_fixture("python_traceback.log")
+        sh_log = _load_fixture("shell_errors.log")
+        combined = py_log + "\n" + sh_log
+
+        errors = extract_errors(combined)
+        types = {e.error_type for e in errors}
+
+        py_types = {t for t in types if "Python" in t or "Module" in t
+                    or "pytest" in t or "Import" in t}
+        sh_types = {t for t in types if "Shell" in t or "Makefile" in t
+                    or "Docker" in t or "Permission" in t
+                    or "Command" in t or "Segmentation" in t}
+        self.assertGreaterEqual(
+            len(py_types), 1, "Expected at least one Python error type",
+        )
+        self.assertGreaterEqual(
+            len(sh_types), 1, "Expected at least one Shell/generic error type",
+        )
+
+    def test_language_filter_go_only(self) -> None:
+        """language='go' on a mixed Go+Java log returns only Go patterns."""
+        go_log = _load_fixture("go_errors.log")
+        java_log = _load_fixture("java_errors.log")
+        combined = go_log + "\n" + java_log
+
+        errors = extract_errors(combined, language="go")
+        for err in errors:
+            self.assertEqual(
+                err.error_type[:2], "Go",
+                f"Expected Go error type, got: {err.error_type!r}",
+            )
+
+    def test_language_filter_java_only(self) -> None:
+        """language='java' on a mixed Go+Java log returns only Java patterns."""
+        go_log = _load_fixture("go_errors.log")
+        java_log = _load_fixture("java_errors.log")
+        combined = go_log + "\n" + java_log
+
+        errors = extract_errors(combined, language="java")
+        for err in errors:
+            self.assertIn(
+                "Java", err.error_type,
+                f"Expected Java error type, got: {err.error_type!r}",
+            )
+
+
 class TestEdgeCases(unittest.TestCase):
     """Boundary conditions: empty input, no errors, language filtering, mixed logs."""
 

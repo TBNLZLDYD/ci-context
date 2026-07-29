@@ -1,0 +1,34 @@
+Running Maven build...
+mvn clean compile test
+
+[INFO] Scanning for projects...
+[INFO] Building my-app 1.0.0
+[INFO] Compiling 12 source files to /target/classes
+
+App.java:15: error: ';' expected
+    private String name = "test"
+                                ^
+1 error
+
+[INFO] BUILD FAILURE
+[INFO] Total time: 3.421 s
+
+Running unit tests...
+mvn test
+
+Tests run: 24, Failures: 0, Errors: 1, Skipped: 0
+
+com.example.app.ServiceException: connection failed to database host db.internal:5432
+	at com.example.app.DatabaseService.connect(DatabaseService.java:42)
+	at com.example.app.DatabaseService.initialize(DatabaseService.java:28)
+	at com.example.app.Application.start(Application.java:15)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+
+Service.java:30: error: cannot find symbol
+    symbol:   class Repository
+    location: class com.example.app.Service
+2 errors
+
+[INFO] Tests run: 24, Failures: 0, Errors: 1, Skipped: 0
+[INFO] BUILD SUCCESS
