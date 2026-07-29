@@ -136,6 +136,178 @@ register(
 )
 
 # ---------------------------------------------------------------------------
+# Built-in Go error patterns
+# ---------------------------------------------------------------------------
+
+# Go panic: multi-line block ending at a blank line.
+# A panic prints "panic: <message>" then a goroutine stack; the first stack
+# frame (e.g. "/path/file.go:42 +0xabc") gives the crash location.
+register(
+    ErrorPattern(
+        name="Go panic",
+        language="go",
+        start_pattern=re.compile(r"^panic:"),
+        message_pattern=re.compile(r"^panic:\s*(.+)$", re.MULTILINE),
+        location_pattern=re.compile(r"(.+\.go):(\d+)\s+\+0x[0-9a-fA-F]+"),
+        end_condition="blank_line",
+    )
+)
+
+# Go build/compile error: single-line with file:line:col prefix.
+# The Go compiler emits "./main.go:10:2: syntax error" — the location is
+# embedded in the line itself, so end_condition="next_start" (no multi-line
+# block to collect).
+register(
+    ErrorPattern(
+        name="Go build error",
+        language="go",
+        start_pattern=re.compile(r"^(?:\./)?\S+\.go:\d+:\d+:"),
+        message_pattern=re.compile(
+            r"^(?:\./)?\S+\.go:\d+:\d+:\s*(.+)$", re.MULTILINE
+        ),
+        location_pattern=re.compile(r"((?:\./)?\S+\.go):(\d+):\d+:"),
+        end_condition="next_start",
+    )
+)
+
+# ---------------------------------------------------------------------------
+# Built-in Java error patterns
+# ---------------------------------------------------------------------------
+
+# Java Exception: multi-line block ending at a blank line.
+# A Java stack trace starts with "fully.qualified.Exception: message";
+# the first "at" frame with a source file (e.g. "at Class.method(File.java:42)")
+# provides the location.
+register(
+    ErrorPattern(
+        name="Java Exception",
+        language="java",
+        start_pattern=re.compile(
+            r"^[\w.$]+(?:Exception|Error|Throwable):\s"
+        ),
+        message_pattern=re.compile(
+            r"^([\w.$]+(?:Exception|Error|Throwable)):\s*(.+)$",
+            re.MULTILINE,
+        ),
+        location_pattern=re.compile(r"at\s+[\w.$]+\.\w+\(([\w.]+):(\d+)\)"),
+        end_condition="blank_line",
+    )
+)
+
+# Java compilation error: single-line with file:line prefix.
+# javac prints "File.java:10: error: ';' expected" — the location is the
+# file:line before the "error:" keyword.
+register(
+    ErrorPattern(
+        name="Java compilation error",
+        language="java",
+        start_pattern=re.compile(r"^\S+\.java:\d+:\s*error:"),
+        message_pattern=re.compile(
+            r"^\S+\.java:\d+:\s*error:\s*(.+)$", re.MULTILINE
+        ),
+        location_pattern=re.compile(r"(\S+\.java):(\d+):\s*error:"),
+        end_condition="next_start",
+    )
+)
+
+# ---------------------------------------------------------------------------
+# Built-in Shell/generic error patterns
+# ---------------------------------------------------------------------------
+
+# Shell exit code: one-line diagnostic from CI wrappers or shell scripts.
+# Covers both "Error: ... exited with code N" and "Command failed with exit
+# code N" phrasing — no file:line location exists for process-level errors.
+register(
+    ErrorPattern(
+        name="Shell exit code",
+        language="shell",
+        start_pattern=re.compile(
+            r"(?:Error|Command failed).*exited with code \d+"
+        ),
+        message_pattern=re.compile(
+            r"((?:Error|Command failed).*exited with code \d+)", re.MULTILINE
+        ),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# Makefile error: one-line from GNU Make when a recipe exits non-zero.
+# The bracketed target (e.g. "[target]") and error code identify the failure;
+# no source location is available at the Make level.
+register(
+    ErrorPattern(
+        name="Makefile error",
+        language="shell",
+        start_pattern=re.compile(r"make(?:\[\d+\])?:\s*\*\*\*"),
+        message_pattern=re.compile(
+            r"make(?:\[\d+\])?:\s*\*\*\*\s*(.+)$", re.MULTILINE
+        ),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# Docker/buildkit ERROR: one-line from Docker builds.
+# Docker build output prefixes errors with "ERROR:"; the text after the
+# prefix is the diagnostic (e.g. "failed to fetch", "process did not run").
+register(
+    ErrorPattern(
+        name="Docker error",
+        language="generic",
+        start_pattern=re.compile(r"^ERROR:\s+"),
+        message_pattern=re.compile(r"^ERROR:\s+(.+)$", re.MULTILINE),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# Permission denied: common shell/OS error when a file or socket is
+# inaccessible. The path is embedded in the message; no separate location.
+register(
+    ErrorPattern(
+        name="Permission denied",
+        language="shell",
+        start_pattern=re.compile(r"Permission denied"),
+        message_pattern=re.compile(r"Permission denied\s*(.+?)$", re.MULTILINE),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# Command not found: shell diagnostic when an executable is missing from
+# PATH. The command name is the key identifier; no file:line exists.
+register(
+    ErrorPattern(
+        name="Command not found",
+        language="shell",
+        start_pattern=re.compile(
+            r"(?:bash|sh|zsh):\s+\S+:\s*(?:command\s+)?not found"
+        ),
+        message_pattern=re.compile(
+            r"(?:bash|sh|zsh):\s+(\S+):\s*(?:command\s+)?not found",
+            re.MULTILINE,
+        ),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# Segmentation fault: OS-level signal when a process accesses invalid memory.
+# The optional "(core dumped)" suffix is informational; no source location
+# is available from the signal itself.
+register(
+    ErrorPattern(
+        name="Segmentation fault",
+        language="generic",
+        start_pattern=re.compile(r"Segmentation fault"),
+        message_pattern=re.compile(r"(Segmentation fault(?:\s*\(core dumped\))?)"),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# ---------------------------------------------------------------------------
 # Built-in Node.js error patterns
 # ---------------------------------------------------------------------------
 
