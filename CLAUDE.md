@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Status: PoC Phase
 
-The project is in PoC stage. Data-fetching pipeline works end-to-end; analysis pipeline partially implemented (normalizer + patterns + extractor done, fingerprint + matcher still stub); structured rendering is stub.
+The project is in PoC stage. Data-fetching pipeline works end-to-end; analysis pipeline fully implemented (normalizer + patterns + extractor + fingerprint + matcher); structured rendering is stub.
 
-**What works**: auth -> client -> runs -> jobs -> log fetch -> normalizer -> inline PoC report
-**What's stub**: fingerprint, matcher, commits, prs, renderers, cache, config
+**What works**: auth -> client -> runs -> jobs -> log fetch -> normalizer -> extractor -> fingerprint -> matcher
+**What's stub**: commits, prs, renderers, cache, config
 
 ## Commands
 
@@ -87,13 +87,13 @@ CLI (Typer)
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
 | `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (PoC) / `recent` (stub) / `repo` (stub). `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference).                                                                               | Partial |
 | `github/`   | All GitHub API interaction.`client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = stub. | Partial |
-| `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` -> `matcher` = stub.                                                                                                                                                                                | Partial |
+| `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` = implemented. `matcher` = implemented.                                                                                                                                                                                | Done     |
 | `models/`   | Pure dataclasses. All defined:`WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`.                                                                                                                                                                           | Done    |
 | `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both stub.                                                                                                                                                                                                                                                                       | Stub    |
 | `cache/`    | SQLite for error fingerprints + run metadata. Stub.                                                                                                                                                                                                                                                                                  | Stub    |
 | `config/`   | TOML config management. Stub.                                                                                                                                                                                                                                                                                                        | Stub    |
 
-### Error Extraction Pipeline (Target)
+### Error Extraction Pipeline (Implemented)
 
 1. `normalizer.py` -- strip ANSI codes, GHA timestamp prefixes, `##[section]`/`::group::`/`::endgroup::` markers; collapse consecutive blank lines; preserve original line numbers
 2. `patterns.py` -- `ErrorPattern` dataclass: `start_pattern` (detect block start) -> `message_pattern` (extract message) -> `location_pattern` (extract file:line) -> `end_condition` (block boundary)

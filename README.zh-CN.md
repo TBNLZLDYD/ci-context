@@ -4,7 +4,7 @@
 
 **ci-context** 是一个 Python CLI 工具，给定失败的 GitHub Actions run ID，自动获取并综合所有相关上下文，生成可读的失败诊断报告 -- 让你不再花 10-30 分钟手动翻日志、查 commits、找 PR 评论。
 
-**状态：v0.1.0b1 (PoC)** -- 核心数据获取管道已可用；错误提取、commit/PR 上下文、历史匹配、结构化渲染正在开发中。
+**状态：v0.1.0b1 (PoC)** -- 核心数据获取和错误分析管道已可用；commit/PR 上下文、结构化渲染和缓存正在开发中。
 
 ## 快速开始
 
@@ -29,14 +29,15 @@ ci-context gh repo owner/repo
 - **失败 Jobs** -- 列出失败 jobs 及 step 级别详情
 - **日志获取** -- 下载 job 日志，大日志自动截断
 - **日志规范化** -- 剥离 ANSI 码、GHA 时间戳、section/group 标记
+- **错误提取** -- 基于 regex 的 Python/Node/Go/Java/Shell 错误提取，带置信度分级
+- **指纹计算** -- 归一化变量值（路径、行号、SHA）并哈希，实现稳定匹配
+- **历史模式匹配** -- 将错误分类为 [EXACT]/[SIMILAR]/[NEW]，含失败率趋势和 commit 模式提示
 - **PoC 报告** -- 内联 Rich 输出，展示 run 概览 + 规范化日志尾部
 
 ## 即将支持
 
-- **错误提取** -- 基于 regex 的 Python/Node/Go/Java/Shell 错误提取
 - **Commit 上下文** -- 触发 commit 的 diff 摘要
 - **PR 上下文** -- Review 状态和最新评论
-- **历史模式匹配** -- "这个错误在过去 30 天出现了 3 次"
 - **Rich 结构化报告** -- 完整 PRD 格式报告，包含所有上下文区块
 - **JSON 输出** -- `--json` 标志供程序化消费
 - **SQLite 缓存** -- 减少重复运行时的 API 调用
