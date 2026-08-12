@@ -103,10 +103,16 @@ CLI (Typer)
 
 ## Known Bugs
 
-| Bug                                        | Location              | Impact                                                                                                                            |
-| ------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 6 CLI options not wired                    | `gh.py` run_command | --json/--no-color/--no-history/--no-pr/--attempt/--error-lines accepted but no effect                                             |
-| timed_out/cancelled misreported as success | `gh.py` run_command | conclusion="timed_out"/"cancelled" treated as non-failure, exits without analysis (inconsistent with jobs.py FAILURE_CONCLUSIONS) |
+None currently known.
+
+## Known Missing Features
+
+| Feature                                                          | Location              | Status                                          |
+| ---------------------------------------------------------------- | --------------------- | ----------------------------------------------- |
+| `--json` / `--no-color` (D19)                                    | `gh.py` run_command   | Accepted but no effect (renderer is a stub)     |
+| `--no-history` / `--no-pr` / `--attempt` / `--error-lines` (D21) | `gh.py` run_command   | Accepted but no effect (history / PR not wired) |
+
+Note: `--force` (part of D21) is already wired -- it bypasses the non-failure guard in `run_command`.
 
 ## Conventions
 

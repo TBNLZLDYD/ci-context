@@ -10,7 +10,7 @@ from ci_context.cli.repo_utils import resolve_repo
 from ci_context.github.auth import resolve_token
 from ci_context.github.client import GitHubClient
 from ci_context.github.exceptions import AuthError, RateLimitError, RunNotFoundError
-from ci_context.github.jobs import JobInfo, fetch_job_log, get_failed_jobs
+from ci_context.github.jobs import FAILURE_CONCLUSIONS, JobInfo, fetch_job_log, get_failed_jobs
 from ci_context.github.runs import get_run
 from ci_context.models.run import WorkflowRunInfo
 
@@ -81,7 +81,13 @@ def run_command(
                         "Wait for it to finish or use --force to analyze anyway."
                     )
                     raise typer.Exit(0)
-                if run_info.conclusion != "failure":
+                # Use jobs.FAILURE_CONCLUSIONS as the single source of truth
+                # instead of hardcoding "failure": a run can also conclude as
+                # "timed_out", which jobs.py treats as a failure. Hardcoding
+                # "failure" here would let a timed-out run exit without
+                # analyzing its failed jobs. "cancelled" (human-initiated) is
+                # intentionally not in the set and is handled as non-failure.
+                if run_info.conclusion not in FAILURE_CONCLUSIONS:
                     conclusion_display = run_info.conclusion or "unknown"
                     console.print(
                         f"[green]Run {run_id} concluded with "

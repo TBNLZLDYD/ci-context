@@ -24,7 +24,7 @@ ci-context gh repo owner/repo
 
 ## 当前可用功能
 
-- **认证** -- `gh auth login`、配置文件、或 `--token` 参数
+- **认证** -- `--token` 参数、配置文件（~/.config/ci-context/config.toml）、或 `gh auth login`
 - **Run 信息** -- 获取 workflow run 详情（状态、结论、SHA、事件、耗时）
 - **失败 Jobs** -- 列出失败 jobs 及 step 级别详情
 - **日志获取** -- 下载 job 日志，大日志自动截断
@@ -45,7 +45,7 @@ ci-context gh repo owner/repo
 ## 系统要求
 
 - Python 3.11+
-- GitHub 认证（`gh auth login` 或 `--token` 参数）
+- GitHub 认证（三种方式之一：`--token` 参数、配置文件（~/.config/ci-context/config.toml，Windows 为 %APPDATA%/ci-context/config.toml）、或 `gh auth login`）
 
 ## 安装
 

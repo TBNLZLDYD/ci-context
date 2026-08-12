@@ -151,6 +151,41 @@ class TestRunCommandConclusionHandling(unittest.TestCase):
         mock_jobs.assert_called_once()
         mock_report.assert_called_once()
 
+    def test_timed_out_proceeds_to_fetch_jobs(self):
+        """conclusion='timed_out' should NOT exit early; should fetch failed jobs."""
+        run_info = _make_run_info(conclusion="timed_out")
+
+        mock_console = MagicMock()
+        mock_client = _make_mock_client()
+
+        with (
+            patch("ci_context.cli.gh.resolve_token", return_value="fake-token"),
+            patch("ci_context.cli.gh.resolve_repo", return_value="owner/repo"),
+            patch("ci_context.cli.gh.GitHubClient", return_value=mock_client),
+            patch("ci_context.cli.gh.get_run", return_value=run_info),
+            patch("ci_context.cli.gh.get_failed_jobs", return_value=[]) as mock_jobs,
+            patch("ci_context.cli.gh._print_poc_report") as mock_report,
+            patch("ci_context.cli.gh.console", mock_console),
+            contextlib.suppress(typer.Exit),
+        ):
+            run_command(
+                ctx=_make_mock_ctx(),
+                run_id=12345,
+                repo=None,
+                attempt=None,
+                force=False,
+                no_history=False,
+                no_pr=False,
+                max_history=30,
+                error_lines=5,
+                json_output=False,
+                no_color=False,
+                token=None,
+            )
+
+        mock_jobs.assert_called_once()
+        mock_report.assert_called_once()
+
     def test_cancelled_prints_concluded_with_cancelled(self):
         """conclusion='cancelled' should print 'concluded with cancelled'."""
         run_info = _make_run_info(conclusion="cancelled")

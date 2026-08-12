@@ -24,7 +24,7 @@ ci-context gh repo owner/repo
 
 ## What Works Now
 
-- **Authentication** -- `gh auth login`, config file, or `--token` flag
+- **Authentication** -- `--token` flag, config file (~/.config/ci-context/config.toml), or `gh auth login`
 - **Run info** -- Fetch workflow run details (status, conclusion, SHA, event, duration)
 - **Failed jobs** -- List failed jobs with step-level breakdown
 - **Log fetching** -- Download job logs with automatic truncation for large logs
@@ -45,7 +45,7 @@ ci-context gh repo owner/repo
 ## Requirements
 
 - Python 3.11+
-- GitHub authentication (`gh auth login` or `--token` flag)
+- GitHub authentication (one of: `--token` flag, config file at `~/.config/ci-context/config.toml` / `%APPDATA%/ci-context/config.toml` on Windows, or `gh auth login`)
 
 ## Installation
 
