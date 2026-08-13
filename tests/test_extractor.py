@@ -401,5 +401,162 @@ class TestEdgeCases(unittest.TestCase):
                                 "Expected at least one Node error type")
 
 
+class TestLinterPatterns(unittest.TestCase):
+    """Linter output patterns: ruff, mypy, eslint, jscs."""
+
+    def test_extracts_ruff_lint_error_with_location(self) -> None:
+        """Ruff lint error yields message + file:line from the arrow line."""
+        log = _load_fixture("python_lint.log")
+        errors = extract_errors(log, language="python")
+
+        ruff_errs = [e for e in errors if e.error_type == "Ruff lint error"]
+        self.assertGreaterEqual(len(ruff_errs), 1)
+
+        # Tail-first: first extracted is the last in the log. Find E501.
+        e501 = [e for e in ruff_errs if "E501" in e.message]
+        self.assertGreaterEqual(len(e501), 1)
+
+        err = e501[0]
+        self.assertIn("Line too long", err.message)
+        # Location from the "--> file:line:col" arrow line.
+        self.assertIsNotNone(err.file_location)
+        self.assertIn("exceptions.py", err.file_location or "")
+        self.assertEqual(err.confidence, "high")
+
+    def test_extracts_multiple_ruff_errors(self) -> None:
+        """Multiple distinct ruff violations are each extracted separately."""
+        log = _load_fixture("python_lint.log")
+        errors = extract_errors(log, language="python")
+
+        ruff_errs = [e for e in errors if e.error_type == "Ruff lint error"]
+        # Fixture has 4 ruff errors: E501, UP045, I001, F401
+        self.assertGreaterEqual(len(ruff_errs), 3)
+
+    def test_extracts_mypy_type_error(self) -> None:
+        """mypy error yields message + file:line from the prefix."""
+        log = _load_fixture("python_lint.log")
+        errors = extract_errors(log, language="python")
+
+        mypy_errs = [e for e in errors if e.error_type == "mypy type error"]
+        self.assertGreaterEqual(len(mypy_errs), 1)
+
+        # Tail-first: check all mypy errors for expected content.
+        messages = [e.message for e in mypy_errs]
+        self.assertTrue(
+            any("return type annotation" in m for m in messages),
+            f"Expected 'return type annotation' in mypy messages: {messages}",
+        )
+        for err in mypy_errs:
+            self.assertIsNotNone(err.file_location)
+            self.assertEqual(err.confidence, "high")
+
+    def test_extracts_eslint_error(self) -> None:
+        """eslint error line yields message, no location, confidence=medium."""
+        log = _load_fixture("node_lint.log")
+        errors = extract_errors(log, language="node")
+
+        eslint_errs = [e for e in errors if e.error_type == "eslint error"]
+        self.assertGreaterEqual(len(eslint_errs), 1)
+
+        # At least one eslint error should mention "Incorrect examples"
+        messages = [e.message for e in eslint_errs]
+        self.assertTrue(
+            any("Incorrect examples" in m for m in messages),
+            f"Expected 'Incorrect examples' in eslint messages: {messages}",
+        )
+        # All eslint errors have no file location and medium confidence.
+        for err in eslint_errs:
+            self.assertIsNone(err.file_location)
+            self.assertEqual(err.confidence, "medium")
+
+    def test_extracts_jscs_style_error(self) -> None:
+        """jscs code style summary line is extracted."""
+        log = _load_fixture("node_lint.log")
+        errors = extract_errors(log, language="node")
+
+        jscs_errs = [e for e in errors if e.error_type == "jscs style error"]
+        self.assertEqual(len(jscs_errs), 1)
+
+        err = jscs_errs[0]
+        self.assertIn("1 code style error", err.message)
+
+    def test_npm_err_denounced_filters_cascade_noise(self) -> None:
+        """npm ERR! pattern excludes cascade-noise lines (errno, Exit status, etc.)."""
+        log = _load_fixture("node_lint.log")
+        errors = extract_errors(log, language="node")
+
+        npm_errs = [e for e in errors if e.error_type == "npm ERR!"]
+        # Only the "Failed at" line should survive; all noise lines excluded.
+        messages = [e.message for e in npm_errs]
+
+        # The "Failed at" line must be present.
+        failed = [m for m in messages if "Failed at" in m]
+        self.assertGreaterEqual(len(failed), 1)
+
+        # Cascade-noise lines must NOT be present.
+        for m in messages:
+            self.assertNotIn("errno", m, f"errno noise leaked: {m}")
+            self.assertNotIn("Exit status", m, f"Exit status noise leaked: {m}")
+            self.assertNotIn("complete log", m, f"complete log noise leaked: {m}")
+            self.assertNotIn("ELIFECYCLE", m, f"ELIFECYCLE noise leaked: {m}")
+            self.assertNotIn("npm argv", m, f"argv noise leaked: {m}")
+
+
+class TestGenericCIPatterns(unittest.TestCase):
+    """Generic CI error patterns: GHA exit code, git fatal."""
+
+    def test_extracts_gha_exit_code(self) -> None:
+        """GHA exit code extracted after normalizer strips ##[error] prefix."""
+        log = _load_fixture("generic_ci_errors.log")
+        # Simulate what normalizer does: strip ##[error] prefix
+        from ci_context.analysis.normalizer import normalize_to_text
+
+        normalized = normalize_to_text(log)
+        errors = extract_errors(normalized)
+
+        gha_errs = [e for e in errors if e.error_type == "GHA exit code"]
+        self.assertGreaterEqual(len(gha_errs), 1)
+
+        err = gha_errs[0]
+        self.assertIn("exit code 1", err.message)
+
+    def test_extracts_git_fatal_error(self) -> None:
+        """git fatal: line is extracted with the diagnostic message."""
+        log = _load_fixture("generic_ci_errors.log")
+        from ci_context.analysis.normalizer import normalize_to_text
+
+        normalized = normalize_to_text(log)
+        errors = extract_errors(normalized)
+
+        git_errs = [e for e in errors if e.error_type == "git fatal"]
+        self.assertGreaterEqual(len(git_errs), 1)
+
+        err = git_errs[0]
+        self.assertIn("unable to access", err.message)
+        self.assertIn("certificate", err.message)
+        self.assertIsNone(err.file_location)
+        self.assertEqual(err.confidence, "medium")
+
+
+class TestNormalizerGhaError(unittest.TestCase):
+    """Verify that the normalizer strips ##[error] prefix but keeps content."""
+
+    def test_strips_error_prefix_keeps_content(self) -> None:
+        """##[error] prefix is removed, message content is preserved."""
+        from ci_context.analysis.normalizer import normalize_to_text
+
+        raw = "##[error]Process completed with exit code 1."
+        result = normalize_to_text(raw)
+        self.assertEqual(result, "Process completed with exit code 1.")
+
+    def test_strips_error_prefix_with_label(self) -> None:
+        """##[error] with extra whitespace is stripped cleanly."""
+        from ci_context.analysis.normalizer import normalize_to_text
+
+        raw = "##[error]   Unexpected lint error found"
+        result = normalize_to_text(raw)
+        self.assertEqual(result, "Unexpected lint error found")
+
+
 if __name__ == "__main__":
     unittest.main()

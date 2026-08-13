@@ -1,0 +1,44 @@
+Running ruff...
+E501 Line too long (116 > 100)
+--> src/ci_context/github/exceptions.py:54:101
+
+UP045 [*] Use `X | None` for type annotations
+--> src/ci_context/github/client.py:19:31
+
+I001 [*] Import block is un-sorted or un-formatted
+--> src/ci_context/github/runs.py:3:1
+
+F401 `httpx` imported but unused
+--> src/ci_context/github/jobs.py:12:5
+
+ruff check failed
+
+Running pytest...
+============================= test session starts =============================
+platform win32 -- Python 3.11.9
+collected 5 items
+
+tests/test_parser.py::test_parse_int PASSED                          [ 20%]
+tests/test_parser.py::test_parse_float PASSED                        [ 40%]
+tests/test_parser.py::test_parse_invalid PASSED                      [ 60%]
+tests/test_parser.py::test_parse_empty_string FAILED                 [ 80%]
+tests/test_parser.py::test_parse_none FAILED                         [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_parse_empty_string ___________________________
+
+Traceback (most recent call last):
+  File "tests/test_parser.py", line 42, in test_parse_empty_string
+    result = parse_int("")
+ValueError: invalid literal for int() with base 10: ''
+  File "src/parser.py", line 42, in parse_int
+    result = int(value)
+ModuleNotFoundError: No module named 'requests'
+
+FAILED tests/test_parser.py::test_parse_empty_string - ValueError: invalid literal for int() with base 10: ''
+FAILED tests/test_parser.py::test_parse_none - AssertionError: assert None == 0
+
+Running mypy...
+src/ci_context/models/error.py:15: error: Function is missing a return type annotation  [empty-body]
+src/ci_context/analysis/extractor.py:80: error: Argument 1 has incompatible type  [arg-type]
+mypy found 2 errors

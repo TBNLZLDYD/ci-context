@@ -20,18 +20,25 @@ _MAX_ERRORS = 10
 _MAX_RAW_LINES = 5
 
 
-def _collect_block(lines: list[str], start_idx: int, end_condition: str) -> str:
+def _collect_block(
+    lines: list[str], start_idx: int, end_condition: str, block_size: int = 1
+) -> str:
     """Collect the error block starting at *start_idx* according to *end_condition*.
 
     - ``"blank_line"``: include lines until a blank line is encountered.
     - ``"next_start"``: only the start line itself (single-line errors).
     - ``"eof"``: include everything from start to the end of the log.
+    - ``"fixed_lines"``: include exactly *block_size* lines from start.
     """
     if end_condition == "next_start":
         return lines[start_idx]
 
     if end_condition == "eof":
         return "\n".join(lines[start_idx:])
+
+    if end_condition == "fixed_lines":
+        end_idx = min(start_idx + block_size, len(lines))
+        return "\n".join(lines[start_idx:end_idx])
 
     # end_condition == "blank_line"
     block_lines: list[str] = []
@@ -114,7 +121,9 @@ def extract_errors(log: str, language: str | None = None) -> list[ExtractedError
             if not pattern.matches_start(line):
                 continue
 
-            block = _collect_block(lines, idx, pattern.end_condition)
+            block = _collect_block(
+                lines, idx, pattern.end_condition, pattern.block_size
+            )
             message = pattern.extract_message(block)
             location = pattern.extract_location(block)
             confidence = _assign_confidence(pattern, message, location, block)

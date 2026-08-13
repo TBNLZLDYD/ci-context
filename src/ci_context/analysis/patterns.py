@@ -21,9 +21,13 @@ class ErrorPattern:
     start_pattern: re.Pattern[str]  # Detects the start of an error block
     message_pattern: re.Pattern[str]  # Extracts the core error message
     location_pattern: re.Pattern[str] | None  # Extracts file:line location
-    # "blank_line" | "next_start" | "eof" — how the error block ends.
-    # The extractor uses this to know where to stop collecting lines.
+    # "blank_line" | "next_start" | "eof" | "fixed_lines" — how the error
+    # block ends. The extractor uses this to know where to stop collecting lines.
     end_condition: str
+    # When end_condition == "fixed_lines", collect exactly this many lines
+    # from the start. Useful for formats where the line after the start
+    # contains the location (e.g. ruff's "--> file:line:col" arrow line).
+    block_size: int = 1
 
     def matches_start(self, line: str) -> bool:
         """Check if a line starts a new error block."""
@@ -131,6 +135,37 @@ register(
         start_pattern=re.compile(r"^ImportError:"),
         message_pattern=re.compile(r"^ImportError:\s*(.+)$", re.MULTILINE),
         location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# ruff linter output: two-line block (message line + "-->" location line).
+# ruff prints the rule code + message on the first line, then a "--> file:line:col"
+# arrow on the second line pointing to the offending code.
+register(
+    ErrorPattern(
+        name="Ruff lint error",
+        language="python",
+        start_pattern=re.compile(r"^[A-Z]\d{3}\s.*"),
+        message_pattern=re.compile(r"^([A-Z]\d{3}\s.+)$", re.MULTILINE),
+        location_pattern=re.compile(r"-->\s*(.+?):(\d+):\d+"),
+        end_condition="fixed_lines",
+        block_size=2,
+    )
+)
+
+# mypy type error: single-line with "file:line: error:" prefix.
+# mypy emits "src/module.py:42: error: Incompatible types ..." on one line,
+# so the location is embedded in the start line itself.
+register(
+    ErrorPattern(
+        name="mypy type error",
+        language="python",
+        start_pattern=re.compile(r"^\S+\.py:\d+:\s*error:"),
+        message_pattern=re.compile(
+            r"^\S+\.py:\d+:\s*error:\s*(.+)$", re.MULTILINE
+        ),
+        location_pattern=re.compile(r"(\S+\.py):(\d+):\s*error:"),
         end_condition="next_start",
     )
 )
@@ -343,15 +378,84 @@ register(
     )
 )
 
-# npm ERR!: one-line errors from the npm CLI.
-# No file:line location exists — npm errors are command-level diagnostics
-# (e.g. missing scripts, network failures), not source-level.
+# npm ERR!: actionable npm errors only.
+# npm prints ~15 lines of cascade noise per failure. We filter to only
+# lines that carry real diagnostics: "Failed at", "missing", "command failed"
+# and error messages. Pure metadata (errno, code, Exit status, argv,
+# Linux, node v, etc.) is excluded via positive matching of diagnostic keywords.
 register(
     ErrorPattern(
         name="npm ERR!",
         language="node",
-        start_pattern=re.compile(r"^npm ERR!\s+"),
+        start_pattern=re.compile(
+            r"^npm ERR!\s+(?:Failed at|missing|Command failed|command not found)"
+        ),
         message_pattern=re.compile(r"^npm ERR!\s+(.+)$", re.MULTILINE),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# eslint lint error: single-line with "line:col  error  message" format.
+# eslint prints position columns, the severity ("error" or "warning"), then
+# the rule name in parentheses. We only match "error" severity (not warnings).
+register(
+    ErrorPattern(
+        name="eslint error",
+        language="node",
+        start_pattern=re.compile(r"^\s*\d+:\d+\s+error\s+"),
+        message_pattern=re.compile(
+            r"^\s*\d+:\d+\s+error\s+(.+)$", re.MULTILINE
+        ),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# jscs code style error: single-line summary from the JavaScript Code Style
+# checker. jscs prints "N code style error(s) found." as a final summary.
+register(
+    ErrorPattern(
+        name="jscs style error",
+        language="node",
+        start_pattern=re.compile(r"\d+\s+code style error"),
+        message_pattern=re.compile(r"(\d+\s+code style error.+)", re.MULTILINE),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+# Built-in generic CI/git error patterns
+# ---------------------------------------------------------------------------
+
+# GHA "Process completed with exit code N": the universal step-failure marker.
+# After normalization strips the "##[error]" prefix, only the message remains.
+# This catches it as a last-resort generic pattern so a non-zero exit is never
+# silently dropped, even when no language-specific pattern matched.
+register(
+    ErrorPattern(
+        name="GHA exit code",
+        language="generic",
+        start_pattern=re.compile(r"Process completed with exit code \d+"),
+        message_pattern=re.compile(
+            r"(Process completed with exit code \d+)", re.MULTILINE
+        ),
+        location_pattern=None,
+        end_condition="next_start",
+    )
+)
+
+# git fatal: single-line errors from git operations (clone, fetch, checkout).
+# Common in CI when SSL certificates are misconfigured, repos are private, or
+# refs are missing. The message after "fatal:" is the diagnostic.
+register(
+    ErrorPattern(
+        name="git fatal",
+        language="generic",
+        start_pattern=re.compile(r"^fatal:\s+"),
+        message_pattern=re.compile(r"^fatal:\s*(.+)$", re.MULTILINE),
         location_pattern=None,
         end_condition="next_start",
     )

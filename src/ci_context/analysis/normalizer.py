@@ -13,6 +13,10 @@ GHA_TIMESTAMP_RE = re.compile(
     r"^\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})\s+"
 )
 SECTION_RE = re.compile(r"^##\[section\]")
+# ##[error] is similar to ##[section] but carries diagnostic content we must
+# keep. Strip the "##[error]" prefix and any immediately following whitespace,
+# leaving the actual error message intact for the extractor.
+GHA_ERROR_RE = re.compile(r"^##\[error\]\s*")
 GROUP_RE = re.compile(r"^::group::")
 ENDGROUP_RE = re.compile(r"^::endgroup::")
 
@@ -58,6 +62,11 @@ def normalize(raw_log: str) -> list[NormalizedLine]:
         # 3. Skip ##[section] marker lines entirely
         if SECTION_RE.match(line):
             continue
+
+        # 3b. Strip ##[error] prefix but keep the diagnostic content.
+        # Unlike ##[section], ##[error] lines carry useful messages that the
+        # extractor needs (e.g. "Process completed with exit code 1").
+        line = GHA_ERROR_RE.sub("", line)
 
         # 4. Remove ::group:: markers (skip the line)
         if GROUP_RE.match(line):

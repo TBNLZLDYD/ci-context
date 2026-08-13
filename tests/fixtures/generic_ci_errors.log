@@ -1,0 +1,5 @@
+##[error]Process completed with exit code 1.
+Run git clone --depth 1 https://github.com/owner/repo.git
+Cloning into 'repo'...
+fatal: unable to access 'https://github.com/owner/repo.git/': server certificate verification failed. CAfile: /etc/ssl/certs/ca-certificates.crt CRLfile: none
+make: *** [Makefile:15: clone] Error 128

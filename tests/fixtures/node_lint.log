@@ -1,0 +1,24 @@
+Running eslint...
+
+/path/to/project/lib/rules/foo.js
+  459:1   error    Incorrect examples should have at least one error reported by the rule  require-meta-has-suggestions
+  460:5   error    `meta.docs.description` is required                       require-meta-docs-description
+  470:3   error    `meta.schema` must be an object                           require-meta-schema
+
+/path/to/project/tests/lib/rules/foo.js
+  15:1   error    Expected exception object, but got string                 no-throw-literal
+  28:1   error    Use the global form of 'use strict'                       strict
+
+✖ 5 problems (5 errors, 0 warnings)
+
+npm ERR! Lifecycle `lint` failed with exit code 1
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! Failed at `eslint@8.57.0` `lint` script
+npm ERR! Exit status 1
+npm ERR!
+npm ERR! A complete log of this run can be found in:
+npm ERR! /home/runner/.npm/_logs/2024-01-15_debug.log
+npm ERR! npm argv /usr/local/bin/node /usr/local/bin/npm run lint
+
+1 code style error found.
