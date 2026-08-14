@@ -38,8 +38,12 @@ def get_commit_context(client: GitHubClient, owner_repo: str, sha: str) -> Commi
     Returns:
         CommitInfo dataclass
 
-    Never raises; a failed fetch degrades to a stub CommitInfo that keeps the
-    requested sha so the report can still reference the commit.
+    A per-resource fetch failure (the requested commit is unknown, rate-limited,
+    or the network fails) is caught and degrades to a stub CommitInfo that keeps
+    the requested sha so the report can still reference the commit. A
+    repository-level failure (client.get_repo: bad auth, repo not found) is NOT
+    caught here and propagates to the caller — by design, so auth/not-found
+    errors surface clearly instead of being silently stubbed.
     """
     repo = client.get_repo(owner_repo)
     try:

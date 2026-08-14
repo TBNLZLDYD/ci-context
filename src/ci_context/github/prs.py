@@ -48,8 +48,12 @@ def get_pr_context(client: GitHubClient, owner_repo: str, pr_number: int) -> PRI
     Returns:
         PRInfo dataclass
 
-    Never raises; a failed fetch degrades to a stub PRInfo that keeps the
-    requested number so the report can still reference the PR.
+    A per-resource fetch failure (the requested PR is unknown, rate-limited, or
+    the network fails) is caught and degrades to a stub PRInfo that keeps the
+    requested number so the report can still reference the PR. A
+    repository-level failure (client.get_repo: bad auth, repo not found) is NOT
+    caught here and propagates to the caller — by design, so auth/not-found
+    errors surface clearly instead of being silently stubbed.
     """
     repo = client.get_repo(owner_repo)
     try:
