@@ -142,12 +142,13 @@ register(
 # ruff linter output: two-line block (message line + "-->" location line).
 # ruff prints the rule code + message on the first line, then a "--> file:line:col"
 # arrow on the second line pointing to the offending code.
+# Rule codes are 1+ uppercase letters + digits (E501, UP045, PLW0120, etc.).
 register(
     ErrorPattern(
         name="Ruff lint error",
         language="python",
-        start_pattern=re.compile(r"^[A-Z]\d{3}\s.*"),
-        message_pattern=re.compile(r"^([A-Z]\d{3}\s.+)$", re.MULTILINE),
+        start_pattern=re.compile(r"^[A-Z]+\d+\s.*"),
+        message_pattern=re.compile(r"^([A-Z]+\d+\s.+)$", re.MULTILINE),
         location_pattern=re.compile(r"-->\s*(.+?):(\d+):\d+"),
         end_condition="fixed_lines",
         block_size=2,
