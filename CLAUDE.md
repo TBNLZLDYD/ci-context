@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Status: PoC Phase
 
-The project is in PoC stage. Data-fetching pipeline works end-to-end; analysis pipeline fully implemented (normalizer + patterns + extractor + fingerprint + matcher); structured rendering is implemented (rich_renderer + json_renderer); not yet wired into the CLI (D19).
+The project is pre-beta. Data-fetching pipeline works end-to-end; analysis pipeline fully implemented (normalizer + patterns + extractor + fingerprint + matcher); structured rendering implemented and wired into the CLI (run_command assembles a FailureReport and renders via rich_renderer/json_renderer); `gh recent` / `gh repo` implemented; all `gh run` options wired.
 
 **What works**: auth -> client -> runs -> jobs -> log fetch -> normalizer -> extractor -> fingerprint -> matcher
-**What's stub**: cache, config (commits/prs/renderers implemented; renderers not yet wired into CLI -- D19)
+**What's stub**: cache, config
 
 ## Commands
 
@@ -85,11 +85,11 @@ CLI (Typer)
 
 | Package       | Purpose                                                                                                                                                                                                                                                                                                                              | Status  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (PoC) / `recent` (stub) / `repo` (stub). `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference).                                                                               | Partial |
+| `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (full pipeline: extract errors -> commit/PR/history context -> render) / `recent` / `repo` (failed-run list + failure-rate trend), all implemented. `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference).                                                                               | Partial |
 | `github/`   | All GitHub API interaction.`client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = implemented. | Partial |
 | `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` = implemented. `matcher` = implemented.                                                                                                                                                                                | Done     |
 | `models/`   | Pure dataclasses. All defined:`WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`.                                                                                                                                                                           | Done    |
-| `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both implemented (not wired into CLI -- D19).                                                                                                                                                                                                                                                                       | Stub    |
+| `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both implemented and wired into the CLI.                                                                                                                                                                                                                                                                       | Stub    |
 | `cache/`    | SQLite for error fingerprints + run metadata. Stub.                                                                                                                                                                                                                                                                                  | Stub    |
 | `config/`   | TOML config management. Stub.                                                                                                                                                                                                                                                                                                        | Stub    |
 
@@ -109,10 +109,7 @@ None currently known.
 
 | Feature                                                          | Location              | Status                                          |
 | ---------------------------------------------------------------- | --------------------- | ----------------------------------------------- |
-| `--json` / `--no-color` (D19)                                    | `gh.py` run_command   | Accepted but no effect (renderer implemented; not wired into run_command yet -- D19)     |
-| `--no-history` / `--no-pr` / `--attempt` / `--error-lines` (D21) | `gh.py` run_command   | Accepted but no effect (history / PR not wired) |
-
-Note: `--force` (part of D21) is already wired -- it bypasses the non-failure guard in `run_command`.
+| `cache clear` / `cache stats` (D25) | `cli/cache.py` | Accepted but stub (SQLite cache lands D24) |
 
 ## Conventions
 
