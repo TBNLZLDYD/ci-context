@@ -17,13 +17,18 @@ from ci_context.models.report import FailureReport, HistoryReport
 from ci_context.models.run import WorkflowRunInfo
 
 
-def render_report(report: FailureReport, *, no_color: bool = False) -> str:
+def render_report(
+    report: FailureReport, *, no_color: bool = False, error_lines: int = 5
+) -> str:
     """Render a FailureReport to a Rich-formatted string.
 
     Captures Rich output into a string (Console + StringIO) so the function is
     pure and unit-testable. `no_color=True` strips ANSI codes for --no-color /
     non-TTY consumers. Default (False) forces ANSI so color survives the
     StringIO capture (otherwise Rich auto-disables color on non-TTY targets).
+
+    `error_lines` caps how many raw log lines each error shows; 0/negative
+    hides them entirely (JSON output already carries the full raw_lines).
     """
     # force_terminal keeps ANSI in the captured string; without it Rich would
     # treat the StringIO as a non-TTY and silently drop all color.
@@ -39,7 +44,7 @@ def render_report(report: FailureReport, *, no_color: bool = False) -> str:
     console.print()
     console.print(_run_overview(report.run))
     console.print()
-    _print_errors(console, report.errors)
+    _print_errors(console, report.errors, error_lines)
     console.print()
     _print_commit(console, report.commit)
     console.print()
@@ -119,7 +124,9 @@ def _run_overview(run: WorkflowRunInfo) -> Text:
     return lines
 
 
-def _print_errors(console: Console, errors: list[ExtractedError]) -> None:
+def _print_errors(
+    console: Console, errors: list[ExtractedError], error_lines: int = 5
+) -> None:
     """List extracted errors with per-error metadata; never raises on empty."""
     console.print(Text(f"Extracted Errors ({len(errors)} found)", style="bold underline"))
     if not errors:
@@ -139,6 +146,11 @@ def _print_errors(console: Console, errors: list[ExtractedError]) -> None:
         if err.step_name:
             console.print(Text(f"  Step: {err.step_name}", style="dim"))
         console.print(Text(f"  Occurrence: {err.occurrence_count}", style="dim"))
+        if error_lines > 0:
+            # Raw lines are dim/indented so the summary stays scannable and the
+            # verbose detail is visually demoted below the extracted metadata.
+            for raw in err.raw_lines[:error_lines]:
+                console.print(Text(f"    {raw}", style="dim"))
 
 
 def _print_commit(console: Console, commit: CommitInfo | None) -> None:
@@ -162,7 +174,9 @@ def _print_pr(console: Console, pr: PRInfo | None) -> None:
     """Summarize the PR; only rendered for PR-triggered runs."""
     console.print(Text("PR Context", style="bold underline"))
     if pr is None:
-        console.print(Text("(not a PR-triggered run)", style="dim"))
+        # Covers both a non-PR run and a PR-triggered run whose PR lookup
+        # failed — neither is accurate as "(not a PR-triggered run)".
+        console.print(Text("(no PR context available)", style="dim"))
         return
     console.print(Text(f'PR #{pr.number}: "{pr.title}"'))
     console.print(Text(f"Status: {pr.status} · Reviews: {pr.review_state}", style="dim"))
