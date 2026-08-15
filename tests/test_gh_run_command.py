@@ -66,7 +66,9 @@ class TestRunCommandConclusionHandling(unittest.TestCase):
             patch("ci_context.cli.gh.GitHubClient", return_value=mock_client),
             patch("ci_context.cli.gh.get_run", return_value=run_info),
             patch("ci_context.cli.gh.get_failed_jobs", return_value=[]),
-            patch("ci_context.cli.gh._print_poc_report"),
+            # Render seam: replaces the old _print_poc_report boundary; these
+            # early-exit tests never reach it, but the patch target must exist.
+            patch("ci_context.cli.gh.render_report"),
             patch("ci_context.cli.gh.console", mock_console),
         ):
             try:
@@ -129,7 +131,10 @@ class TestRunCommandConclusionHandling(unittest.TestCase):
             patch("ci_context.cli.gh.GitHubClient", return_value=mock_client),
             patch("ci_context.cli.gh.get_run", return_value=run_info),
             patch("ci_context.cli.gh.get_failed_jobs", return_value=[]) as mock_jobs,
-            patch("ci_context.cli.gh._print_poc_report") as mock_report,
+            patch("ci_context.cli.gh._extract_errors_from_jobs", return_value=[]),
+            patch("ci_context.cli.gh.get_commit_context", return_value=None),
+            patch("ci_context.cli.gh._build_history", return_value=None),
+            patch("ci_context.cli.gh.render_report") as mock_report,
             patch("ci_context.cli.gh.console", mock_console),
             contextlib.suppress(typer.Exit),
         ):
@@ -164,7 +169,10 @@ class TestRunCommandConclusionHandling(unittest.TestCase):
             patch("ci_context.cli.gh.GitHubClient", return_value=mock_client),
             patch("ci_context.cli.gh.get_run", return_value=run_info),
             patch("ci_context.cli.gh.get_failed_jobs", return_value=[]) as mock_jobs,
-            patch("ci_context.cli.gh._print_poc_report") as mock_report,
+            patch("ci_context.cli.gh._extract_errors_from_jobs", return_value=[]),
+            patch("ci_context.cli.gh.get_commit_context", return_value=None),
+            patch("ci_context.cli.gh._build_history", return_value=None),
+            patch("ci_context.cli.gh.render_report") as mock_report,
             patch("ci_context.cli.gh.console", mock_console),
             contextlib.suppress(typer.Exit),
         ):
@@ -209,7 +217,10 @@ class TestRunCommandConclusionHandling(unittest.TestCase):
             patch("ci_context.cli.gh.GitHubClient", return_value=mock_client),
             patch("ci_context.cli.gh.get_run", return_value=run_info),
             patch("ci_context.cli.gh.get_failed_jobs", return_value=[]) as mock_jobs,
-            patch("ci_context.cli.gh._print_poc_report") as mock_report,
+            patch("ci_context.cli.gh._extract_errors_from_jobs", return_value=[]),
+            patch("ci_context.cli.gh.get_commit_context", return_value=None),
+            patch("ci_context.cli.gh._build_history", return_value=None),
+            patch("ci_context.cli.gh.render_report") as mock_report,
             patch("ci_context.cli.gh.console", mock_console),
             contextlib.suppress(typer.Exit),
         ):
