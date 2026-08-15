@@ -41,29 +41,161 @@ class JobInfo:
     steps: list[StepInfo]
 
 
-def get_failed_jobs(client: GitHubClient, owner_repo: str, run_id: int) -> list[JobInfo]:
+def get_failed_jobs(
+    client: GitHubClient,
+    owner_repo: str,
+    run_id: int,
+    attempt: int | None = None,
+) -> list[JobInfo]:
     """
     Get all failed jobs for a workflow run.
+
+    When ``attempt`` is given, the attempt-specific endpoint is queried first
+    (PyGithub only exposes the latest attempt). Any failure there — network,
+    404, malformed payload — logs a warning and falls back to the default
+    latest-attempt fetch so the report is never aborted by an attempt quirk.
 
     Args:
         client: GitHubClient instance
         owner_repo: Repository in "owner/repo" format
         run_id: Workflow run ID
+        attempt: Attempt number, or None for the latest attempt
 
     Returns:
         List of failed JobInfo objects
     """
+    if attempt is None:
+        return _default_failed_jobs(client, owner_repo, run_id)
+
+    try:
+        jobs = _fetch_attempt_jobs(client, owner_repo, run_id, attempt)
+    except Exception as e:
+        # The attempt-specific endpoint is a convenience, not a contract: a
+        # failure here must degrade to the well-trodden latest-attempt path
+        # rather than take down the report.
+        logger.warning(
+            "Attempt %d jobs fetch failed for run %d in %s; falling back to latest: %s",
+            attempt,
+            run_id,
+            owner_repo,
+            e,
+        )
+        return _default_failed_jobs(client, owner_repo, run_id)
+
+    # Both "failure" and "timed_out" are failure conclusions in GitHub Actions
+    return [job for job in jobs if job.conclusion in FAILURE_CONCLUSIONS]
+
+
+def _default_failed_jobs(
+    client: GitHubClient, owner_repo: str, run_id: int
+) -> list[JobInfo]:
+    """Fetch failed jobs for the latest attempt via PyGithub (the default path)."""
     repo = client.get_repo(owner_repo)
     run = repo.get_workflow_run(run_id)
     jobs = run.jobs()
 
     # Both "failure" and "timed_out" are failure conclusions in GitHub Actions
-    failed_jobs: list[JobInfo] = []
-    for job in jobs:
-        if job.conclusion in FAILURE_CONCLUSIONS:
-            failed_jobs.append(_to_job_info(job))
+    return [
+        _to_job_info(job)
+        for job in jobs
+        if job.conclusion in FAILURE_CONCLUSIONS
+    ]
 
-    return failed_jobs
+
+def _fetch_attempt_jobs(
+    client: GitHubClient,
+    owner_repo: str,
+    run_id: int,
+    attempt: int,
+) -> list[JobInfo]:
+    """Fetch jobs of a specific attempt from the REST attempts endpoint.
+
+    The response shape mirrors the standard jobs endpoint ({"jobs": [...]}).
+    Structural surprises (non-object payload, missing "jobs" list) raise so the
+    caller falls back to the PyGithub path; the JSON is parsed defensively
+    because response.json() is untyped under mypy strict.
+    """
+    owner, repo_name = owner_repo.split("/", 1)
+    url = f"/repos/{owner}/{repo_name}/actions/runs/{run_id}/attempts/{attempt}/jobs"
+
+    response = client.httpx_client.get(url)
+    response.raise_for_status()
+
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("attempts jobs response is not a JSON object")
+    raw_jobs = payload.get("jobs")
+    if not isinstance(raw_jobs, list):
+        raise ValueError("attempts jobs response missing 'jobs' list")
+
+    return [
+        _attempt_job_to_info(job)
+        for job in raw_jobs
+        if isinstance(job, dict)
+    ]
+
+
+def _attempt_job_to_info(payload: dict[str, object]) -> JobInfo:
+    """Convert one job object from the attempts endpoint JSON to JobInfo.
+
+    Only "id" is mandatory and must be an int — without it the record is
+    untrustworthy, so we raise and let the caller fall back. Everything else is
+    best-effort: missing/oddly-typed values become None/"" rather than raising.
+    """
+    raw_id = payload.get("id")
+    if not isinstance(raw_id, int):
+        raise ValueError(f"job payload missing integer 'id': {raw_id!r}")
+
+    raw_name = payload.get("name")
+    name = raw_name if isinstance(raw_name, str) else ""
+    raw_conclusion = payload.get("conclusion")
+    conclusion = raw_conclusion if isinstance(raw_conclusion, str) else None
+
+    steps: list[StepInfo] = []
+    raw_steps = payload.get("steps")
+    if isinstance(raw_steps, list):
+        for step in raw_steps:
+            if isinstance(step, dict):
+                parsed = _attempt_step_to_info(step)
+                if parsed is not None:
+                    steps.append(parsed)
+
+    return JobInfo(
+        id=raw_id,
+        name=name,
+        conclusion=conclusion,
+        started_at=_parse_iso_datetime(payload.get("started_at")),
+        completed_at=_parse_iso_datetime(payload.get("completed_at")),
+        steps=steps,
+    )
+
+
+def _attempt_step_to_info(step: dict[str, object]) -> StepInfo | None:
+    """Convert one step object; None when the mandatory "number" is missing."""
+    raw_number = step.get("number")
+    if not isinstance(raw_number, int):
+        return None
+    raw_name = step.get("name")
+    name = raw_name if isinstance(raw_name, str) else ""
+    raw_conclusion = step.get("conclusion")
+    conclusion = raw_conclusion if isinstance(raw_conclusion, str) else None
+    return StepInfo(name=name, number=raw_number, conclusion=conclusion)
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    """Parse an ISO-8601 timestamp from a JSON value; None when absent/invalid.
+
+    GitHub emits "Z"-suffixed timestamps, but datetime.fromisoformat on Python
+    3.11 rejects a trailing "Z" — normalize it to the +00:00 offset first.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def fetch_job_log(client: GitHubClient, owner_repo: str, job_id: int) -> str | None:
