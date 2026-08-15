@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
+from itertools import islice
 
 from github.WorkflowRun import WorkflowRun as PyGithubWorkflowRun
 
 from ci_context.github.client import GitHubClient
 from ci_context.github.exceptions import RunNotFoundError
 from ci_context.models.run import WorkflowRunInfo
+
+logger = logging.getLogger(__name__)
 
 
 def get_run(client: GitHubClient, owner_repo: str, run_id: int) -> WorkflowRunInfo:
@@ -47,31 +51,61 @@ def list_workflow_runs(
     Args:
         client: GitHubClient instance
         owner_repo: Repository in "owner/repo" format
-        workflow_id: Workflow ID or name (default: most recently triggered)
+        workflow_id: Workflow ID or name; None lists runs across ALL workflows
         count: Number of runs to return
 
     Returns:
         List of WorkflowRunInfo, sorted by created_at descending
     """
+    # A negative count would invert islice's slice semantics (all-but-last-N);
+    # clamp so callers can never ask for a negative window.
+    count = max(count, 0)
+
     repo = client.get_repo(owner_repo)
 
     if workflow_id is None:
-        # Get workflows and pick the most recently updated one
-        workflows = repo.get_workflows()
-        workflow_list = list(workflows)
-        if not workflow_list:
-            return []
-        workflow = max(workflow_list, key=lambda w: w.updated_at)
+        # Repo-wide listing: the Repository method enumerates runs across every
+        # workflow (no workflow scoping). Callers that want a single workflow's
+        # history must pass an explicit workflow_id — _build_history does so
+        # to keep history scoped to the same workflow file.
+        runs = repo.get_workflow_runs()
     elif isinstance(workflow_id, int):
-        workflow = repo.get_workflow(workflow_id)
+        runs = repo.get_workflow(workflow_id).get_runs()
     else:
         # workflow_id is a name
-        workflow = repo.get_workflow(workflow_id)
+        runs = repo.get_workflow(workflow_id).get_runs()
 
-    runs = workflow.get_runs()
-    # Collect runs (PyGithub handles pagination via per_page setting on Github client)
-    run_list = list(runs)[:count]
+    # islice stops pagination as soon as `count` runs are collected; list(runs)
+    # would otherwise materialize every page before slicing.
+    run_list = list(islice(runs, count))
     return [_to_workflow_run_info(r) for r in run_list]
+
+
+def get_workflow_file(client: GitHubClient, owner_repo: str, run_id: int) -> str | None:
+    """
+    Return the workflow file basename (e.g. ``ci.yml``) that produced a run.
+
+    The history matcher needs to scope historical runs to the same workflow;
+    GitHub's listing endpoint accepts either the numeric workflow ID or the
+    *filename* (never the display name), and ``WorkflowRunInfo`` deliberately
+    carries only the display name. Re-fetching the run here trades one extra
+    API call for a stable scoping key.
+
+    Returns:
+        Basename of the workflow file, or None on any failure so the caller can
+        fall back to a workflow-agnostic history scan.
+    """
+    try:
+        repo = client.get_repo(owner_repo)
+        path = repo.get_workflow_run(run_id).path
+        return path.split("/")[-1] if path else None
+    except Exception as e:
+        # Any failure (auth, not-found, network) degrades to None rather than
+        # aborting the report — a missing scope key is a warning, not a crash.
+        logger.warning(
+            "Could not resolve workflow file for run %d in %s: %s", run_id, owner_repo, e
+        )
+        return None
 
 
 def _to_workflow_run_info(run: PyGithubWorkflowRun) -> WorkflowRunInfo:

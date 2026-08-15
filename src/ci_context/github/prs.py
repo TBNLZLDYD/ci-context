@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from itertools import islice
 
+import httpx
 from github.PullRequest import PullRequest as PyGithubPullRequest
 from github.PullRequestReview import PullRequestReview as PyGithubPullRequestReview
 
@@ -34,6 +35,44 @@ MAX_PR_BODY_CHARS = 500
 # review_state. COMMENTED is just noise, while PENDING and DISMISSED carry no
 # current verdict (a dismissed approval is no longer an approval).
 _DECISION_REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED"}
+
+
+def find_pr_number(client: GitHubClient, owner_repo: str, run_id: int) -> int | None:
+    """
+    Discover the PR number associated with a workflow run, if any.
+
+    The run REST payload includes a ``pull_requests`` array (usually one entry)
+    only when the run was triggered by a pull_request event. PyGithub's
+    WorkflowRun object does not expose this field, so we read it via the raw
+    httpx client that shares the client's auth.
+
+    Returns:
+        The first associated PR number, or None when absent/empty. Any failure
+        (HTTP error, network, malformed payload) degrades to None — PR context
+        is optional and must never crash the report.
+    """
+    owner, repo_name = owner_repo.split("/", 1)
+    url = f"/repos/{owner}/{repo_name}/actions/runs/{run_id}"
+    try:
+        response = client.httpx_client.get(url)
+        response.raise_for_status()
+        payload = response.json()
+        # response.json() is Any under mypy strict — narrow to the known shape.
+        pull_requests = payload.get("pull_requests") if isinstance(payload, dict) else None
+        if not isinstance(pull_requests, list) or not pull_requests:
+            return None
+        first = pull_requests[0]
+        number = first.get("number") if isinstance(first, dict) else None
+        return int(number) if isinstance(number, int) else None
+    except (httpx.HTTPError, httpx.TimeoutException, ValueError, TypeError) as e:
+        # ValueError: non-int "number" or malformed JSON; TypeError: unexpected
+        # payload nesting. All mean "no PR info we can trust" -> None.
+        logger.warning("Could not find PR for run %d in %s: %s", run_id, owner_repo, e)
+        return None
+    except Exception as e:
+        # Catch-all for any unforeseen failure so PR discovery stays best-effort.
+        logger.warning("Unexpected error finding PR for run %d in %s: %s", run_id, owner_repo, e)
+        return None
 
 
 def get_pr_context(client: GitHubClient, owner_repo: str, pr_number: int) -> PRInfo:

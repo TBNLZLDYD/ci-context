@@ -69,3 +69,27 @@ def get_commit_context(client: GitHubClient, owner_repo: str, sha: str) -> Commi
         author=commit.commit.author.name or "",
         changed_files=changed_files,
     )
+
+
+def get_commit_message(client: GitHubClient, owner_repo: str, sha: str) -> str:
+    """
+    Return the first line of a commit message (lightweight history metadata).
+
+    Distinct from ``get_commit_context``: history matching only needs the
+    subject line to spot commit-message patterns, and the full context fetch
+    also pulls the changed-files diff — prohibitively expensive across up to 30
+    historical runs. This keeps the per-run cost to a single unadorned commit.
+
+    Returns:
+        First line of the commit message, or "" on any failure (never raises).
+    """
+    try:
+        repo = client.get_repo(owner_repo)
+        message = repo.get_commit(sha).commit.message or ""
+    except Exception as e:
+        # A missing commit (force-pushed history, deleted branch) must not abort
+        # the history scan — an empty message only weakens the pattern hint.
+        logger.warning("Could not fetch commit message for %s in %s: %s", sha, owner_repo, e)
+        return ""
+    first_line = message.splitlines()[0] if message.splitlines() else ""
+    return first_line
