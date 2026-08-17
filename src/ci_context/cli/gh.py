@@ -364,8 +364,8 @@ def _render_recent_failures(
         else 0.0
     )
     trend = compute_trend(recent_rate, overall_rate)
-    overall_pct = f"{int(overall_rate * 100)}%"
-    recent_pct = f"{int(recent_rate * 100)}%"
+    overall_pct = f"{round(overall_rate * 100)}%"
+    recent_pct = f"{round(recent_rate * 100)}%"
 
     if json_output:
         payload = {

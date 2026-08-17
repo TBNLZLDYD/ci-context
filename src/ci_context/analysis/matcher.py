@@ -315,8 +315,10 @@ def build_history_report(
         recent_failed_runs / recent_total_runs if recent_total_runs > 0 else 0.0
     )
 
-    failure_rate_pct = f"{int(overall_rate * 100)}%"
-    recent_failure_rate_pct = f"{int(recent_rate * 100)}%"
+    # round rather than int: truncation would show 66% for 2/3 failures, which
+    # understates the true 67% and surprises readers.
+    failure_rate_pct = f"{round(overall_rate * 100)}%"
+    recent_failure_rate_pct = f"{round(recent_rate * 100)}%"
 
     trend = compute_trend(recent_rate, overall_rate)
 
