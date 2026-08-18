@@ -260,9 +260,12 @@ class TestInitDb(unittest.TestCase):
             import shutil
 
             shutil.rmtree(target_dir)
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(target_dir)}, clear=True), patch(
-            "ci_context.cache.db.os.name", "nt"
-        ):
+        # Patch the env var for the *current* platform only.  Patching
+        # os.name here would drive the foreign Path class in cache_path()
+        # (WindowsPath on a Linux runner) and raise NotImplementedError —
+        # exactly the trap documented at the top of TestCachePath.
+        cache_env_var = "LOCALAPPDATA" if os.name == "nt" else "XDG_CACHE_HOME"
+        with patch.dict(os.environ, {cache_env_var: str(target_dir)}, clear=True):
             path = cache_path()
             self.assertFalse(path.parent.exists())
             with get_connection():
