@@ -46,6 +46,13 @@ def find_pr_number(client: GitHubClient, owner_repo: str, run_id: int) -> int | 
     WorkflowRun object does not expose this field, so we read it via the raw
     httpx client that shares the client's auth.
 
+    Some runs (again pull_request events) come back with an *empty*
+    ``pull_requests`` array even though the commit is genuinely attached to a
+    PR — in that case we ask the commit's associated-pulls endpoint
+    (``GET /repos/{owner}/{repo}/commits/{head_sha}/pulls``) once and take the
+    first result.  When the run payload carries no ``head_sha`` there is
+    nothing to query, so we give up without a fallback.
+
     Returns:
         The first associated PR number, or None when absent/empty. Any failure
         (HTTP error, network, malformed payload) degrades to None — PR context
@@ -58,21 +65,60 @@ def find_pr_number(client: GitHubClient, owner_repo: str, run_id: int) -> int | 
         response.raise_for_status()
         payload = response.json()
         # response.json() is Any under mypy strict — narrow to the known shape.
-        pull_requests = payload.get("pull_requests") if isinstance(payload, dict) else None
-        if not isinstance(pull_requests, list) or not pull_requests:
+        if not isinstance(payload, dict):
             return None
-        first = pull_requests[0]
-        number = first.get("number") if isinstance(first, dict) else None
-        return int(number) if isinstance(number, int) else None
+        pull_requests = payload.get("pull_requests")
+        if isinstance(pull_requests, list) and pull_requests:
+            number = _extract_pr_number(pull_requests[0])
+            if number is not None:
+                return number
+        # Empty array (or non-list) fallback: the commit may still belong to a
+        # PR. head_sha is only present on pull-request-triggered runs; skip the
+        # fallback without it so we never guess a shaft instead of a sha.
+        head_sha = payload.get("head_sha")
+        if isinstance(head_sha, str) and head_sha:
+            pulls_url = f"/repos/{owner}/{repo_name}/commits/{head_sha}/pulls"
+            pr_number = _extract_associated_pr(client, pulls_url)
+            if pr_number is not None:
+                return pr_number
+        return None
     except (httpx.HTTPError, httpx.TimeoutException, ValueError, TypeError) as e:
         # ValueError: non-int "number" or malformed JSON; TypeError: unexpected
         # payload nesting. All mean "no PR info we can trust" -> None.
         logger.warning("Could not find PR for run %d in %s: %s", run_id, owner_repo, e)
         return None
     except Exception as e:
-        # Catch-all for any unforeseen failure so PR discovery stays best-effort.
+        # Catch-all for anything unforeseen so PR discovery stays best-effort.
         logger.warning("Unexpected error finding PR for run %d in %s: %s", run_id, owner_repo, e)
         return None
+
+
+def _extract_pr_number(item: object) -> int | None:
+    """Pull the numeric ``number`` from one JSON array element.
+
+    Shared by the run payload and the commit-association fallback so both go
+    through the same shape check (a non-dict element or a non-int number is
+    "no PR info", never a crash).
+    """
+    if not isinstance(item, dict):
+        return None
+    number = item.get("number")
+    return int(number) if isinstance(number, int) else None
+
+
+def _extract_associated_pr(client: GitHubClient, url: str) -> int | None:
+    """Return the first PR number from ``GET url``'s array, or None.
+
+    A non-200 response throws (raised inside the caller's try/except) so the
+    caller's degrade-to-None behaviour stays in one place; an empty/absent
+    array is just "no association found".
+    """
+    response = client.httpx_client.get(url)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, list) or not payload:
+        return None
+    return _extract_pr_number(payload[0])
 
 
 def get_pr_context(client: GitHubClient, owner_repo: str, pr_number: int) -> PRInfo:

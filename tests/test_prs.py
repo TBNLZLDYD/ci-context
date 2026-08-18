@@ -4,10 +4,13 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock
 
+import httpx
+
 from ci_context.github.prs import (
     MAX_PR_BODY_CHARS,
     MAX_REVIEW_BODY_CHARS,
     MAX_REVIEWS,
+    find_pr_number,
     get_pr_context,
 )
 from ci_context.models.pr import PRInfo
@@ -251,6 +254,104 @@ class TestGetPRContext(unittest.TestCase):
         result = get_pr_context(client, "owner/repo", 42)
 
         self.assertEqual(result.review_state, "approved")
+
+
+class TestFindPrNumber(unittest.TestCase):
+    """find_pr_number reads run.pull_requests and falls back to commit pulls."""
+
+    def _make_client(self, responses):
+        """Build a mock client whose httpx GETs dispatch per URL.
+
+        responses maps a URL path to (json_payload_or_None, raise_error). A
+        raise_error=True entry makes raise_for_status() throw an HTTPError,
+        the same shape as a real non-200 response.
+        """
+        client = MagicMock()
+
+        def _get(url, *args, **kwargs):
+            payload, raise_error = responses[url]
+            resp = MagicMock()
+            if raise_error:
+                resp.raise_for_status.side_effect = httpx.HTTPError("non-200")
+            resp.json.return_value = payload
+            return resp
+
+        client.httpx_client.get.side_effect = _get
+        return client
+
+    def test_returns_number_from_run_payload(self):
+        """A populated run.pull_requests wins without touching the commit API."""
+        run_url = "/repos/owner/repo/actions/runs/123"
+        client = self._make_client({run_url: ({"pull_requests": [{"number": 42}]}, False)})
+
+        self.assertEqual(find_pr_number(client, "owner/repo", 123), 42)
+        self.assertEqual(client.httpx_client.get.call_count, 1)
+
+    def test_empty_pull_requests_falls_back_to_commit_pulls(self):
+        """An empty array (seen on real pull_request runs) needs the fallback."""
+        client = self._make_client(
+            {
+                "/repos/owner/repo/actions/runs/123": (
+                    {"pull_requests": [], "head_sha": "abc123"},
+                    False,
+                ),
+                "/repos/owner/repo/commits/abc123/pulls": ([{"number": 7}], False),
+            }
+        )
+
+        self.assertEqual(find_pr_number(client, "owner/repo", 123), 7)
+
+    def test_fallback_empty_list_returns_none(self):
+        """A fallback that answers no associated pulls still degrades to None."""
+        client = self._make_client(
+            {
+                "/repos/owner/repo/actions/runs/123": (
+                    {"pull_requests": [], "head_sha": "abc"},
+                    False,
+                ),
+                "/repos/owner/repo/commits/abc/pulls": ([], False),
+            }
+        )
+
+        self.assertIsNone(find_pr_number(client, "owner/repo", 123))
+
+    def test_fallback_http_error_returns_none(self):
+        """A failing fallback request must not crash PR discovery."""
+        client = self._make_client(
+            {
+                "/repos/owner/repo/actions/runs/123": (
+                    {"pull_requests": [], "head_sha": "abc"},
+                    False,
+                ),
+                "/repos/owner/repo/commits/abc/pulls": (None, True),
+            }
+        )
+
+        self.assertIsNone(find_pr_number(client, "owner/repo", 123))
+
+    def test_missing_head_sha_skips_fallback(self):
+        """No head_sha in the run payload => give up, do not query half a URL."""
+        run_url = "/repos/owner/repo/actions/runs/123"
+        client = self._make_client({run_url: ({"pull_requests": []}, False)})
+
+        self.assertIsNone(find_pr_number(client, "owner/repo", 123))
+        self.assertEqual(client.httpx_client.get.call_count, 1)
+
+    def test_run_endpoint_error_returns_none(self):
+        """A failing run lookup itself still degrades to None."""
+        run_url = "/repos/owner/repo/actions/runs/123"
+        client = self._make_client({run_url: (None, True)})
+
+        self.assertIsNone(find_pr_number(client, "owner/repo", 123))
+
+    def test_non_int_number_returns_none(self):
+        """A non-integer number field is untrustworthy PR info -> None."""
+        run_url = "/repos/owner/repo/actions/runs/123"
+        client = self._make_client(
+            {run_url: ({"pull_requests": [{"number": "42"}]}, False)}
+        )
+
+        self.assertIsNone(find_pr_number(client, "owner/repo", 123))
 
 
 if __name__ == "__main__":
