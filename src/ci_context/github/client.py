@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
+from typing import Any
 
 import httpx
+import requests.sessions
 from github import Auth, Github
 from github.Repository import Repository
 
@@ -15,9 +18,28 @@ logger = logging.getLogger(__name__)
 
 # Proxy env vars that requests/httpx auto-detect; stripping them prevents
 # system proxies (e.g., Clash on Windows) from causing SSL CERTIFICATE_VERIFY_FAILED.
+# This alone is insufficient on dev-sidecar machines (see _ORIGINAL... below),
+# because the *registry* system proxy is read by requests' get_environ_proxies().
 _PROXY_ENV_KEYS = (
     "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
     "no_proxy", "NO_PROXY", "all_proxy", "ALL_PROXY",
+)
+
+# requests resolves ambient proxies via Session.merge_environment_settings() ->
+# get_environ_proxies(), which on Windows falls back to
+# urllib.request.getproxies() reading the *registry* system proxy
+# (HKCU\...\Internet Settings). dev-sidecar/Clash set that registry key while
+# leaving HTTP_PROXY env vars empty, so env-var stripping above cannot stop
+# them from MITM-ing api.github.com (SSLCertVerificationError). The textbook
+# fix would be Session.trust_env = False, but Session.__init__ hardcodes it
+# True on each instance and PyGithub builds its Session lazily inside its
+# connection, so the instance is unreachable before the first request. The only
+# reliable lever is replacing get_environ_proxies itself — exactly the proxy
+# half of trust_env=False, while REQUESTS_CA_BUNDLE / CURL_CA_BUNDLE reading
+# stays intact.
+_requests_sessions: Any = requests.sessions
+_ORIGINAL_ENVIRONMENT_PROXIES: Callable[[str, str | None], dict[str, str]] = (
+    _requests_sessions.get_environ_proxies
 )
 
 
@@ -48,6 +70,7 @@ class GitHubClient:
         # We must keep them stripped for the client's entire lifetime; they are
         # restored in close() so the rest of the process is unaffected.
         self._saved_proxy_env = _strip_proxy_env()
+        _suppress_registry_proxy()
         self._pygithub = Github(auth=Auth.Token(token))
         self._httpx_client = httpx.Client(
             base_url="https://api.github.com",
@@ -106,7 +129,10 @@ class GitHubClient:
     def close(self) -> None:
         """Close httpx client connection and restore proxy env vars."""
         self._httpx_client.close()
+        # env vars first, then the lookup, so any session created after close()
+        # sees a fully restored environment again.
         _restore_proxy_env(self._saved_proxy_env)
+        _restore_registry_proxy()
 
     def __enter__(self) -> GitHubClient:
         return self
@@ -140,3 +166,33 @@ def _strip_proxy_env() -> dict[str, str]:
 def _restore_proxy_env(saved: dict[str, str]) -> None:
     """Restore proxy env vars that were previously stripped."""
     os.environ.update(saved)
+
+
+def _empty_environment_proxies(url: str, no_proxy: str | None = None) -> dict[str, str]:
+    """Signature-compatible stand-in so requests sees a no-op proxy lookup.
+
+    Named (instead of a lambda) so patching has a stable, mockable target and
+    ruff/mypy can type-check the call signature without an ignore comment.
+    """
+    return {}
+
+
+def _suppress_registry_proxy() -> None:
+    """Hide the system proxy from every requests Session for the client's lifetime.
+
+    PyGithub creates its requests.Session lazily on the first API call (inside
+    HTTPSRequestsConnection), so a one-shot strip during Github() construction
+    would miss it; the override must stay installed until close(). Patching the
+    module-level lookup is process-wide, but that scope is acceptable here
+    (same as the env-var strip above) and close() restores it for other apps.
+    """
+    _requests_sessions.get_environ_proxies = _empty_environment_proxies
+
+
+def _restore_registry_proxy() -> None:
+    """Restore the original proxy lookup after the client is done.
+
+    Kept idempotent so a double close() (context-manager + explicit) cannot
+    pin the no-op lookup into the process.
+    """
+    _requests_sessions.get_environ_proxies = _ORIGINAL_ENVIRONMENT_PROXIES
