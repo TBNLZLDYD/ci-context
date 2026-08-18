@@ -6,6 +6,7 @@ These tests pin down that a GitHubClient hides it for its lifetime and restores
 it on close(), and that the fix is not the (ineffective) class-level trust_env.
 """
 
+import os
 import unittest
 from unittest import mock
 
@@ -66,6 +67,33 @@ class TestRegistryProxySuppression(unittest.TestCase):
                 self.assertEqual(_resolved_proxies(), {})
             finally:
                 client.close()
+
+    def test_init_failure_restores_proxy_state(self) -> None:
+        """A failing constructor must not leak the env strip or the lookup patch.
+
+        close() (and any `with` block) is unreachable when __init__ raises, so
+        the constructor itself is the only place that can undo what it patched.
+        Without the cleanup, every later requests.Session in the test process
+        would run proxyless even after the exception propagated.
+        """
+        env = {
+            "HTTPS_PROXY": "http://proxy.example:8080",
+            "https_proxy": "http://proxy.example:8080",
+        }
+        with mock.patch(
+            "ci_context.github.client.Github",
+            side_effect=RuntimeError("boom"),
+        ), mock.patch.dict(os.environ, env, clear=False), self.assertRaises(RuntimeError):
+            GitHubClient("test-token")
+            # Inside the patch.dict scope: a leaked strip would make the
+            # keys absent here in spite of patch.dict having set them on
+            # the way into the test.
+            for key, value in env.items():
+                self.assertEqual(os.environ.get(key), value)
+        self.assertIs(
+            requests.sessions.get_environ_proxies,
+            _ORIGINAL_ENVIRONMENT_PROXIES,
+        )
 
 
 if __name__ == "__main__":

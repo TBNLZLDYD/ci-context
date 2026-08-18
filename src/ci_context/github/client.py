@@ -71,17 +71,28 @@ class GitHubClient:
         # restored in close() so the rest of the process is unaffected.
         self._saved_proxy_env = _strip_proxy_env()
         _suppress_registry_proxy()
-        self._pygithub = Github(auth=Auth.Token(token))
-        self._httpx_client = httpx.Client(
-            base_url="https://api.github.com",
-            headers={
-                "Authorization": f"token {token}",
-                "Accept": "application/vnd.github+json",
-            },
-            timeout=10.0,
-            follow_redirects=True,
-            trust_env=False,
-        )
+        try:
+            self._pygithub = Github(auth=Auth.Token(token))
+            self._httpx_client = httpx.Client(
+                base_url="https://api.github.com",
+                headers={
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github+json",
+                },
+                timeout=10.0,
+                follow_redirects=True,
+                trust_env=False,
+            )
+        except BaseException:
+            # A raised __init__ means close() (and any `with` block) is never
+            # reached, so the process-wide env strip + registry-proxy patch
+            # above would leak into every later requests.Session of the host
+            # process.  Restore it now; also close the httpx client if it was
+            # already built, so its connection pool is not left open.
+            _restore_proxy_state(self._saved_proxy_env)
+            if hasattr(self, "_httpx_client"):
+                self._httpx_client.close()
+            raise
 
     @property
     def pygithub(self) -> Github:
@@ -131,8 +142,7 @@ class GitHubClient:
         self._httpx_client.close()
         # env vars first, then the lookup, so any session created after close()
         # sees a fully restored environment again.
-        _restore_proxy_env(self._saved_proxy_env)
-        _restore_registry_proxy()
+        _restore_proxy_state(self._saved_proxy_env)
 
     def __enter__(self) -> GitHubClient:
         return self
@@ -196,3 +206,15 @@ def _restore_registry_proxy() -> None:
     pin the no-op lookup into the process.
     """
     _requests_sessions.get_environ_proxies = _ORIGINAL_ENVIRONMENT_PROXIES
+
+
+def _restore_proxy_state(saved: dict[str, str]) -> None:
+    """Undo both proxy patches: env vars first, then the lookup.
+
+    Single restore point shared by :meth:`GitHubClient.close` and the
+    ``__init__`` failure path so the ordering (env before lookup, so a Session
+    created right after close sees a clean environment) cannot drift between
+    the two cleanup routes.
+    """
+    _restore_proxy_env(saved)
+    _restore_registry_proxy()
