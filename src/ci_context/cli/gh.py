@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from ci_context.analysis.extractor import _MAX_ERRORS, extract_errors
+from ci_context.analysis.extractor import _MAX_ERRORS, _MAX_RAW_LINES, extract_errors
 from ci_context.analysis.fingerprint import compute_fingerprint
 from ci_context.analysis.matcher import (
     HistoricalOccurrence,
@@ -80,7 +80,11 @@ def run_command(
     no_history: bool = typer.Option(False, "--no-history", help="Skip history pattern matching."),
     no_pr: bool = typer.Option(False, "--no-pr", help="Skip PR context fetching."),
     max_history: int = typer.Option(30, "--max-history", help="Number of historical runs."),
-    error_lines: int = typer.Option(5, "--error-lines", help="Raw log lines per error."),
+    error_lines: int = typer.Option(
+        5,
+        "--error-lines",
+        help=f"Raw log lines per error (max {_MAX_RAW_LINES}).",
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable colored output."),
     token: str | None = typer.Option(None, "--token", help="GitHub API token."),
