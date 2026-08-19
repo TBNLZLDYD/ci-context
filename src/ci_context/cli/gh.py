@@ -14,13 +14,14 @@ from rich.table import Table
 from rich.text import Text
 
 from ci_context.analysis.extractor import _MAX_ERRORS, _MAX_RAW_LINES, extract_errors
-from ci_context.analysis.fingerprint import compute_fingerprint
+from ci_context.analysis.fingerprint import compute_fingerprint, normalize_error_message
 from ci_context.analysis.matcher import (
     HistoricalOccurrence,
     build_history_report,
     compute_trend,
 )
 from ci_context.analysis.normalizer import normalize_to_text
+from ci_context.cache import db as cache_db
 from ci_context.cli.repo_utils import resolve_repo
 from ci_context.github.auth import resolve_token
 from ci_context.github.client import GitHubClient
@@ -280,28 +281,115 @@ def _build_history(
         # nothing to match — the rates/trend below still come for free.
         fps: dict[str, list[HistoricalOccurrence]] = {}
         if errors:
+            # Pull the full repo cache once.  We use the set of run_ids it
+            # contains as the "have we scanned this run before?" signal:
+            # any cached occurrence for a run means the extractor already
+            # ran over it on a previous invocation, and the deterministic
+            # nature of the extractor guarantees the same fingerprint set
+            # will come out, so re-running it would just re-do the work.
+            # A cache read failure must NOT abort history — fall through to
+            # the all-API path and let every run be a cache miss.
+            cached: dict[str, list[HistoricalOccurrence]] = {}
+            cached_run_ids: set[int] = set()
+            # Index cached occurrences by run id so a cache hit below is
+            # O(occurrences of that run) instead of re-walking every cached
+            # fingerprint for each failed run (an O(total_fingerprints) scan
+            # per hit).
+            cached_by_run: dict[int, list[tuple[str, HistoricalOccurrence]]] = {}
+            try:
+                cached = cache_db.get_fingerprint_occurrences(repo=repo_str)
+                for fp, occs in cached.items():
+                    for occ in occs:
+                        cached_run_ids.add(occ.run_id)
+                        cached_by_run.setdefault(occ.run_id, []).append((fp, occ))
+            except Exception as cache_exc:
+                logger.warning("Cache read failed in history scan: %s", cache_exc)
+
             for run in failed:
-                # Per-run commit message is fetched once and shared by all of
-                # that run's error occurrences — one request per failed run,
-                # not per error.
+                if run.id in cached_run_ids:
+                    # Cache hit: rebuild the per-fingerprint occurrence
+                    # list from cached data instead of re-fetching the
+                    # job logs.  All cached fingerprints for this run are
+                    # added — the matcher only consults ones matching the
+                    # current errors, so extra entries are harmless.
+                    for fp, occ in cached_by_run[run.id]:
+                        fps.setdefault(fp, []).append(occ)
+                    continue
+
+                # Cache miss: full extraction.  Per-run commit message is
+                # fetched once and shared by all of that run's error
+                # occurrences — one request per failed run, not per error.
                 commit_message = get_commit_message(client, repo_str, run.head_sha)
-                # Collect fingerprints per run first: the same error in two jobs
-                # of one run must count as ONE occurrence, otherwise
-                # occurrence_count inflates and related_runs duplicates run ids.
-                run_fps: set[str] = set()
+                # Collect fingerprints per run first: the same error in two
+                # jobs of one run must count as ONE occurrence, otherwise
+                # occurrence_count inflates and related_runs duplicates run
+                # ids.  We keep the (fp -> error) mapping so the cache
+                # writeback below has the error_type / normalized_message
+                # fields the schema needs.
+                run_fp_to_error: dict[str, ExtractedError] = {}
                 for job in get_failed_jobs(client, repo_str, run.id):
                     raw_log = fetch_job_log(client, repo_str, job.id)
                     if raw_log is None:
                         continue
                     for error in extract_errors(normalize_to_text(raw_log)):
-                        run_fps.add(compute_fingerprint(error))
-                for fp in run_fps:
-                    fps.setdefault(fp, []).append(
-                        HistoricalOccurrence(
-                            run_id=run.id,
-                            timestamp=_iso_utc(run.created_at),
-                            commit_message=commit_message,
-                        )
+                        run_fp_to_error[compute_fingerprint(error)] = error
+                run_timestamp = _iso_utc(run.created_at)
+                # In-memory occurrence list mirrors what the writeback below
+                # persists: one occurrence per (run, fp), not per job.
+                for fp in run_fp_to_error:
+                    occ = HistoricalOccurrence(
+                        run_id=run.id,
+                        timestamp=run_timestamp,
+                        commit_message=commit_message,
+                    )
+                    fps.setdefault(fp, []).append(occ)
+
+                # Write back so the next invocation can short-circuit.
+                # Half a run must never be cached: cache_db.store_fingerprint
+                # opens one connection per call, so a process dying after the
+                # Nth insert would leave the run "partially scanned", and the
+                # cache-hit branch above treats ANY occurrence as a full scan —
+                # the missing fingerprints would then never be re-extracted.
+                # One connection + `with conn:` gives commit-on-success /
+                # rollback-on-failure for the entire run's fingerprint set.
+                # The SQL mirrors cache_db.store_fingerprint (db.py) verbatim
+                # because that function would open its own connection and
+                # force a per-fingerprint commit.
+                # A write failure must not abort the report — log and
+                # move on, the run is still in the current report.
+                try:
+                    with cache_db.get_connection() as conn, conn:
+                        for fp, error in run_fp_to_error.items():
+                            conn.execute(
+                                """
+                                INSERT INTO fingerprints (
+                                    fingerprint, error_type, normalized_message,
+                                    first_seen_at, last_seen_at
+                                ) VALUES (?, ?, ?, ?, ?)
+                                ON CONFLICT(fingerprint) DO UPDATE SET
+                                    last_seen_at = excluded.last_seen_at,
+                                    created_at = excluded.created_at
+                                """,
+                                (
+                                    fp,
+                                    error.error_type,
+                                    normalize_error_message(error),
+                                    run_timestamp,
+                                    run_timestamp,
+                                ),
+                            )
+                            conn.execute(
+                                """
+                                INSERT INTO fingerprint_occurrences (
+                                    fingerprint, run_id, repo, commit_message, timestamp
+                                ) VALUES (?, ?, ?, ?, ?)
+                                ON CONFLICT(fingerprint, run_id, repo) DO NOTHING
+                                """,
+                                (fp, run.id, repo_str, commit_message, run_timestamp),
+                            )
+                except Exception as store_exc:
+                    logger.warning(
+                        "Cache write failed for run %d: %s", run.id, store_exc
                     )
 
         # matcher reads occs[0]/occs[-1] as first/last seen, so each list must

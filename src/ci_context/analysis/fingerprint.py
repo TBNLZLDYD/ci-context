@@ -113,6 +113,18 @@ def _normalize_message(message: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def normalize_error_message(error: ExtractedError) -> str:
+    """Normalize an error's message for storage in the cache.
+
+    Exported separately from :func:`compute_fingerprint` so callers can
+    persist exactly what the ``normalized_message`` column promises.  The
+    message (not ``error_type``) is normalized: the type lives in its own
+    column and a future synthetic ``ExtractedError`` can rebuild the record
+    from both parts.
+    """
+    return _normalize_message(error.message)
+
+
 def compute_fingerprint(error: ExtractedError) -> str:
     """Compute a stable fingerprint for an extracted error.
 
