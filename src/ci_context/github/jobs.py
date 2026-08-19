@@ -118,7 +118,10 @@ def _fetch_attempt_jobs(
     owner, repo_name = owner_repo.split("/", 1)
     url = f"/repos/{owner}/{repo_name}/actions/runs/{run_id}/attempts/{attempt}/jobs"
 
-    response = client.httpx_client.get(url)
+    # client.get() wraps the raw httpx GET in with_retry so transient 5xx /
+    # timeout / connect failures get the PRD 13.2 retry instead of failing
+    # the whole report on a flaky network.
+    response = client.get(url)
     response.raise_for_status()
 
     payload = response.json()
@@ -220,10 +223,17 @@ def fetch_job_log(client: GitHubClient, owner_repo: str, job_id: int) -> str | N
     url = f"/repos/{owner}/{repo_name}/actions/jobs/{job_id}/logs"
 
     try:
-        response = client.httpx_client.get(url)
+        # client.get() raises HTTPStatusError once its internal retry (PRD 13.2)
+        # is exhausted, which the except blocks below degrade to None.
+        response = client.get(url)
         response.raise_for_status()
 
         raw_log = response.text
+
+        # Empty log (PRD 13.2): return a marker so callers can surface it
+        # rather than silently skipping the job.
+        if not raw_log.strip():
+            return "No log output available for this job"
 
         # Truncate large logs: keep first 1000 + last 1000 lines.
         # Use OR logic — a log that exceeds 10MB OR has >2000 lines needs truncation;

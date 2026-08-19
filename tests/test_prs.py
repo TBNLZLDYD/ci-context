@@ -276,7 +276,7 @@ class TestFindPrNumber(unittest.TestCase):
             resp.json.return_value = payload
             return resp
 
-        client.httpx_client.get.side_effect = _get
+        client.get.side_effect = _get
         return client
 
     def test_returns_number_from_run_payload(self):
@@ -285,7 +285,7 @@ class TestFindPrNumber(unittest.TestCase):
         client = self._make_client({run_url: ({"pull_requests": [{"number": 42}]}, False)})
 
         self.assertEqual(find_pr_number(client, "owner/repo", 123), 42)
-        self.assertEqual(client.httpx_client.get.call_count, 1)
+        self.assertEqual(client.get.call_count, 1)
 
     def test_empty_pull_requests_falls_back_to_commit_pulls(self):
         """An empty array (seen on real pull_request runs) needs the fallback."""
@@ -335,7 +335,7 @@ class TestFindPrNumber(unittest.TestCase):
         client = self._make_client({run_url: ({"pull_requests": []}, False)})
 
         self.assertIsNone(find_pr_number(client, "owner/repo", 123))
-        self.assertEqual(client.httpx_client.get.call_count, 1)
+        self.assertEqual(client.get.call_count, 1)
 
     def test_run_endpoint_error_returns_none(self):
         """A failing run lookup itself still degrades to None."""

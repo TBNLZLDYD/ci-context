@@ -34,11 +34,11 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.text = "line1\nline2\nline3"
         mock_response.raise_for_status.return_value = None
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertEqual(result, "line1\nline2\nline3")
-        client.httpx_client.get.assert_called_once_with("/repos/owner/repo/actions/jobs/42/logs")
+        client.get.assert_called_once_with("/repos/owner/repo/actions/jobs/42/logs")
 
     def test_http_404_returns_none(self):
         """Should return None and log warning when logs are expired (404)."""
@@ -46,7 +46,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 404
         mock_response.raise_for_status.side_effect = self._make_httpx_error(404, "Not Found")
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNone(result)
@@ -57,7 +57,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.raise_for_status.side_effect = self._make_httpx_error(429, "Rate Limited")
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNone(result)
@@ -70,7 +70,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response.raise_for_status.side_effect = self._make_httpx_error(
             500, "Internal Server Error"
         )
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNone(result)
@@ -78,7 +78,7 @@ class TestFetchJobLog(unittest.TestCase):
     def test_timeout_returns_none(self):
         """Should return None and log warning on timeout."""
         client = self._make_client()
-        client.httpx_client.get.side_effect = httpx.ReadTimeout("Timed out")
+        client.get.side_effect = httpx.ReadTimeout("Timed out")
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNone(result)
@@ -86,10 +86,34 @@ class TestFetchJobLog(unittest.TestCase):
     def test_network_error_returns_none(self):
         """Should return None and log warning on network error."""
         client = self._make_client()
-        client.httpx_client.get.side_effect = httpx.ConnectError("Connection refused")
+        client.get.side_effect = httpx.ConnectError("Connection refused")
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNone(result)
+
+    def test_empty_log_returns_marker(self):
+        """Should return marker string for empty log content (PRD 13.2)."""
+        client = self._make_client()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = ""
+        mock_response.raise_for_status.return_value = None
+        client.get.return_value = mock_response
+
+        result = fetch_job_log(client, "owner/repo", 42)
+        self.assertIn("No log output available", result)
+
+    def test_whitespace_only_log_returns_marker(self):
+        """Whitespace-only logs should also be treated as empty."""
+        client = self._make_client()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "   \n\n  \t  "
+        mock_response.raise_for_status.return_value = None
+        client.get.return_value = mock_response
+
+        result = fetch_job_log(client, "owner/repo", 42)
+        self.assertIn("No log output available", result)
 
     def test_large_log_truncation(self):
         """Should truncate logs larger than 10MB, keeping first+last 1000 lines."""
@@ -100,7 +124,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.text = large_log
         mock_response.raise_for_status.return_value = None
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNotNone(result)
@@ -118,7 +142,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.text = large_log
         mock_response.raise_for_status.return_value = None
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertIsNotNone(result)
@@ -134,7 +158,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.text = small_log
         mock_response.raise_for_status.return_value = None
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertEqual(result, small_log)
@@ -148,7 +172,7 @@ class TestFetchJobLog(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.text = "redirected log content"
         mock_response.raise_for_status.return_value = None
-        client.httpx_client.get.return_value = mock_response
+        client.get.return_value = mock_response
 
         result = fetch_job_log(client, "owner/repo", 42)
         self.assertEqual(result, "redirected log content")

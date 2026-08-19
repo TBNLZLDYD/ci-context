@@ -61,7 +61,9 @@ def find_pr_number(client: GitHubClient, owner_repo: str, run_id: int) -> int | 
     owner, repo_name = owner_repo.split("/", 1)
     url = f"/repos/{owner}/{repo_name}/actions/runs/{run_id}"
     try:
-        response = client.httpx_client.get(url)
+        # client.get() retries transient 5xx/timeout/network once (PRD 13.2)
+        # before raising; non-2xx still lands in the HTTPError handler below.
+        response = client.get(url)
         response.raise_for_status()
         payload = response.json()
         # response.json() is Any under mypy strict — narrow to the known shape.
@@ -113,7 +115,9 @@ def _extract_associated_pr(client: GitHubClient, url: str) -> int | None:
     caller's degrade-to-None behaviour stays in one place; an empty/absent
     array is just "no association found".
     """
-    response = client.httpx_client.get(url)
+    # Retry goes through client.get(); a 5xx that exhausts the retry raises
+    # on to find_pr_number's handler instead of being swallowed here.
+    response = client.get(url)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, list) or not payload:

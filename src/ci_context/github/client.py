@@ -4,17 +4,31 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 import requests.sessions
 from github import Auth, Github
+from github.GithubRetry import GithubRetry
 from github.Repository import Repository
 
 from ci_context.github.exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+# PRD 13.2 mandates "1 retry with 2s exponential backoff" for transient
+# failures (connection error, timeout, 5xx). Centralized here so tests can
+# patch ci_context.github.client.time.sleep (the real time.sleep is not safe
+# in unit tests) and so the policy is visible from one place.
+DEFAULT_RETRY_BACKOFF_SECONDS = 2.0
+# 5xx is the universally-retried server-error class. 4xx is intentionally
+# excluded — a 401/403/404 won't fix itself by retrying, and the GitHub
+# rate-limit endpoint handles 429 separately in check_rate_limit().
+RETRYABLE_HTTP_STATUSES = frozenset({500, 502, 503, 504})
 
 # Proxy env vars that requests/httpx auto-detect; stripping them prevents
 # system proxies (e.g., Clash on Windows) from causing SSL CERTIFICATE_VERIFY_FAILED.
@@ -72,7 +86,16 @@ class GitHubClient:
         self._saved_proxy_env = _strip_proxy_env()
         _suppress_registry_proxy()
         try:
-            self._pygithub = Github(auth=Auth.Token(token))
+            # timeout=10 enforces PRD 13.2's 10s network budget per call.
+            # retry=GithubRetry(total=1, backoff_factor=2.0) gives the exact
+            # "1 retry after 2s" policy the PRD asks for, overriding PyGithub's
+            # default of 10 retries (which would multiply request latency by 10x
+            # on transient failures and surprise the user).
+            self._pygithub = Github(
+                auth=Auth.Token(token),
+                timeout=10,
+                retry=GithubRetry(total=1, backoff_factor=DEFAULT_RETRY_BACKOFF_SECONDS),
+            )
             self._httpx_client = httpx.Client(
                 base_url="https://api.github.com",
                 headers={
@@ -137,6 +160,31 @@ class GitHubClient:
         """Fetch a repository by 'owner/repo' string."""
         return self._pygithub.get_repo(owner_repo)
 
+    def get(self, url: str, *, is_idempotent: bool = True) -> httpx.Response:
+        """GET ``url`` with 1 retry on transient failures (PRD 13.2).
+
+        Wraps ``httpx_client.get`` + ``raise_for_status`` in :func:`with_retry`
+        so 5xx, timeouts, and connection errors get one automatic retry after
+        :data:`DEFAULT_RETRY_BACKOFF_SECONDS` seconds. 4xx responses propagate
+        without retrying — they signal caller error (bad URL, missing
+        permission) that a second try cannot fix.
+
+        Args:
+            url: Path relative to the client's ``base_url``.
+            is_idempotent: Set to False for write operations to skip retry
+                entirely; auto-retrying a non-idempotent call risks duplicating
+                its side effect.
+
+        Returns:
+            The :class:`httpx.Response` (status already checked).
+        """
+        def _do() -> httpx.Response:
+            response = self._httpx_client.get(url)
+            response.raise_for_status()
+            return response
+
+        return with_retry(_do, is_idempotent=is_idempotent)
+
     def close(self) -> None:
         """Close httpx client connection and restore proxy env vars."""
         self._httpx_client.close()
@@ -155,6 +203,54 @@ class GitHubClient:
     ) -> None:
         self.close()
         return None
+
+
+# ---------------------------------------------------------------------------
+# Retry helper (PRD 13.2)
+# ---------------------------------------------------------------------------
+
+
+def with_retry(
+    fn: Callable[[], T],
+    *,
+    is_idempotent: bool = True,
+    backoff: float = DEFAULT_RETRY_BACKOFF_SECONDS,
+) -> T:
+    """Execute ``fn`` with one automatic retry on transient failure.
+
+    Transient failures include connection errors, timeouts, and 5xx HTTP
+    responses. 4xx responses are **never** retried — they signal caller
+    error (bad URL / missing permission) that a second attempt cannot fix.
+    Non-idempotent calls skip retry entirely to avoid duplicating side
+    effects.
+
+    The backoff sleep uses :data:`DEFAULT_RETRY_BACKOFF_SECONDS` by default
+    so unit tests can patch it (or patch ``time.sleep`` itself) to avoid
+    real wall-clock waiting.
+
+    Args:
+        fn: A zero-argument callable performing the request.
+        is_idempotent: When False, skip retry unconditionally.
+        backoff: Seconds to sleep before the retry.
+
+    Returns:
+        The return value of ``fn`` (type-preserved via ``T``).
+    """
+    try:
+        return fn()
+    except httpx.HTTPStatusError as exc:
+        # 5xx is the only HTTP-level transient worth retrying. 4xx and
+        # 1xx/2xx (which should not reach this path) propagate immediately.
+        if not is_idempotent or exc.response.status_code not in RETRYABLE_HTTP_STATUSES:
+            raise
+        time.sleep(backoff)
+        return fn()
+    except (httpx.ConnectError, httpx.TimeoutException):
+        # Network-level failures are always transient — retry once.
+        if not is_idempotent:
+            raise
+        time.sleep(backoff)
+        return fn()
 
 
 def _strip_proxy_env() -> dict[str, str]:
