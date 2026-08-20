@@ -32,7 +32,6 @@ jobs:
 
       - name: Type check with mypy
         run: uv run mypy src/
-        continue-on-error: true  # Don't block CI on mypy during early development
 
       - name: Run tests
         run: uv run pytest -q --no-header || [ $? -eq 5 ]
