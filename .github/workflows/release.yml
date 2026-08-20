@@ -1,0 +1,111 @@
+name: Release
+
+# Tag-driven release: pushing any tag matching v* (e.g. v0.1.0b1) builds sdist
+# + wheel and publishes to PyPI. The project's chosen release model is
+# direct-push-to-main with a v-prefixed tag triggering this workflow, so this
+# file is the single point of truth for shipping artifacts to PyPI.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Prevent concurrent release runs against the same tag ref from racing and
+# corrupting PyPI state; cancel-in-progress: false because an upload in
+# flight must never be silently aborted mid-publish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Least-privilege default; the publish job opts into the extra id-token it
+# would need for PyPI trusted (OIDC) publishing if/when we move off the
+# static API token.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        # Default shallow checkout (fetch-depth: 1) is enough: the version
+        # comes from pyproject.toml (hatchling static version), not git history.
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Pin to 3.12 to match the lowest fully-supported CPython in
+          # pyproject's classifiers while staying a step ahead of the 3.11 floor.
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --dev
+        # --dev so twine (and the rest of the dev group) is available locally
+        # in the project venv as a fallback for the validation step below.
+
+      - name: Build sdist and wheel
+        run: uv build
+        # uv build hands off to the configured backend (hatchling) and writes
+        # both dist/*.tar.gz and dist/*.whl in a single invocation, which is
+        # exactly the pair PyPI expects.
+
+      - name: Validate distributions with twine
+        run: uvx twine check dist/*
+        # Use `uvx` (fully isolated tool env) rather than `uv run --with twine`:
+        # the latter still resolves through the project dependency graph, where
+        # `rich<14` (project pin) collides with the latest twine's `rich>=14.3.3`
+        # constraint and fails the check before it even runs. `uvx` skips that
+        # resolution entirely, so the freshly-published twine (>= 7.0) can
+        # validate Metadata-Version 2.5 (PEP 714) produced by hatchling 1.x.
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+          # 7 days is plenty for the publish job to consume them and leaves
+          # a short forensic window for manual re-publishing if ever needed.
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    # needs: build -> publish only runs after a successful build, so a broken
+    # tag push never leaves half-state on PyPI.
+    needs: build
+    runs-on: ubuntu-latest
+
+    # The `pypi` environment lets repo admins gate this job behind required
+    # reviewers (recommended for the first few releases until we fully trust
+    # the tag-push model) and scopes environment-level secrets to this job
+    # only. It's also the natural place to attach the PYPI_API_TOKEN secret
+    # in the repo settings UI.
+    environment: pypi
+
+    # PyPI publish needs id-token: write in addition to contents: read
+    # (OIDC trusted publishing); the static-token path doesn't strictly
+    # require it, but granting it now means we can flip to OIDC later
+    # without changing the workflow.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # The official action reads PYPI_API_TOKEN from the environment
+          # when `password:` is omitted; passing it explicitly makes the
+          # secret dependency obvious in the workflow file itself.
+          password: ${{ secrets.PYPI_API_TOKEN }}
