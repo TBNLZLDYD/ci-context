@@ -245,8 +245,13 @@ def with_retry(
             raise
         time.sleep(backoff)
         return fn()
-    except (httpx.ConnectError, httpx.TimeoutException):
-        # Network-level failures are always transient — retry once.
+    except httpx.TransportError:
+        # Transport failures — connect, read/write resets, timeouts — are all
+        # transient network hiccups, so retry once. TransportError is the precise
+        # boundary: it covers TimeoutException and NetworkError (Connect/Read/
+        # Write/Close) without also catching non-transient RequestError siblings
+        # such as DecodingError or StreamError, which a second attempt would just
+        # fail again after wasting the backoff sleep.
         if not is_idempotent:
             raise
         time.sleep(backoff)

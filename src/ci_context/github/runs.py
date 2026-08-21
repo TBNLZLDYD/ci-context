@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from itertools import islice
 
+from github.GithubException import GithubException
 from github.WorkflowRun import WorkflowRun as PyGithubWorkflowRun
 
 from ci_context.github.client import GitHubClient
@@ -28,13 +29,21 @@ def get_run(client: GitHubClient, owner_repo: str, run_id: int) -> WorkflowRunIn
         WorkflowRunInfo dataclass
 
     Raises:
-        RunNotFoundError: If run does not exist
+        RunNotFoundError: If the run id does not exist (GitHub 404).
     """
     repo = client.get_repo(owner_repo)
     try:
         run = repo.get_workflow_run(run_id)
-    except Exception as e:
-        raise RunNotFoundError(run_id, owner_repo) from e
+    except GithubException as e:
+        # Only a 404 means the run id is genuinely wrong. Auth failures (401),
+        # rate limits (403/429) and the like must surface as themselves — mapping
+        # them to RunNotFoundError would have the CLI tell the user "run not
+        # found" when the real cause was an expired token or a 30s rate-limit
+        # window. GithubException.status is always set (constructor-required),
+        # so read it directly rather than getattr-with-default.
+        if e.status == 404:
+            raise RunNotFoundError(run_id, owner_repo) from e
+        raise
 
     return _to_workflow_run_info(run)
 

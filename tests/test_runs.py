@@ -4,6 +4,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock
 
+from github.GithubException import GithubException
+
 from ci_context.github.exceptions import RunNotFoundError
 from ci_context.github.runs import get_run, get_workflow_file, list_workflow_runs
 from ci_context.models.run import WorkflowRunInfo
@@ -97,14 +99,30 @@ class TestGetRun(unittest.TestCase):
         self.assertEqual(result.head_sha, "")
         self.assertEqual(result.url, "")
 
-    def test_get_workflow_run_error_raises_run_not_found(self):
-        """An exception from get_workflow_run must surface as RunNotFoundError."""
+    def test_get_workflow_run_not_found_404_raises_run_not_found(self):
+        """A 404 from get_workflow_run must surface as RunNotFoundError."""
         client = MagicMock()
-        client.get_repo.return_value.get_workflow_run.side_effect = RuntimeError("boom")
+        client.get_repo.return_value.get_workflow_run.side_effect = GithubException(
+            404, {"message": "Not Found"}
+        )
         with self.assertRaises(RunNotFoundError) as ctx:
             get_run(client, "owner/repo", 99999)
         # The exception chain must preserve the underlying cause for debugging.
-        self.assertIsInstance(ctx.exception.__cause__, RuntimeError)
+        self.assertIsInstance(ctx.exception.__cause__, GithubException)
+
+    def test_get_workflow_run_transient_error_propagates_unchanged(self):
+        """Non-404 GithubException (auth/rate-limit) must NOT be relabeled as run-not-found."""
+        # A real GithubException (not RuntimeError) is essential: only the 404
+        # branch is guarded, and a non-GithubException would pass even if the
+        # except were broadened back to `except Exception`. Locking the contract
+        # with 401 ensures 401/429 stay visible instead of masquerading as
+        # "run not found".
+        client = MagicMock()
+        client.get_repo.return_value.get_workflow_run.side_effect = GithubException(
+            401, {"message": "Bad credentials"}
+        )
+        with self.assertRaises(GithubException):
+            get_run(client, "owner/repo", 99999)
 
     def test_get_repo_error_propagates_unchanged(self):
         """get_repo failures are repo-level and must NOT be converted to RunNotFoundError."""

@@ -8,7 +8,10 @@ import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 
+import httpx
+import requests
 import typer
+from github.GithubException import GithubException
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
@@ -211,12 +214,16 @@ def _extract_errors_from_jobs(
     deterministic regardless of job iteration order.
     """
     merged: dict[tuple[str, str], ExtractedError] = {}
+    log_fetch_failures = 0
 
     for job in failed_jobs:
         raw_log = fetch_job_log(client, repo_str, job.id)
         if raw_log is None:
             # A failed/expired log fetch is skipped gracefully — missing one
-            # job's log must not abort the whole report.
+            # job's log must not abort the whole report. But count the miss so
+            # an *all*-failed fetch can be surfaced below instead of silently
+            # reading as "no errors".
+            log_fetch_failures += 1
             continue
         normalized = normalize_to_text(raw_log)
         for error in extract_errors(normalized):
@@ -226,6 +233,17 @@ def _extract_errors_from_jobs(
                 merged[key].occurrence_count += error.occurrence_count
             else:
                 merged[key] = error
+
+    # "No errors extracted" is only honest when the logs were actually read.
+    # When *every* job-log fetch failed (GitHub expires logs ~90 days), an empty
+    # error list means "we couldn't get them", not "the run was clean" — surface
+    # that. Requiring an all-failed fetch (not just one 404 among many) keeps the
+    # hint from noise on a partial hiccup that can't fully explain the absence.
+    if not merged and log_fetch_failures and log_fetch_failures == len(failed_jobs):
+        console.print(
+            f"[dim]Could not fetch any of the {len(failed_jobs)} failed-job "
+            "log(s); errors may be hidden by expired or blocked logs.[/dim]"
+        )
 
     # extract_errors caps at _MAX_ERRORS *per job*, so merging across jobs can
     # exceed the documented report cap (architecture.md: 10, confidence-sorted).
@@ -319,30 +337,75 @@ def _build_history(
                 # Cache miss: full extraction.  Per-run commit message is
                 # fetched once and shared by all of that run's error
                 # occurrences — one request per failed run, not per error.
-                commit_message = get_commit_message(client, repo_str, run.head_sha)
-                # Collect fingerprints per run first: the same error in two
-                # jobs of one run must count as ONE occurrence, otherwise
-                # occurrence_count inflates and related_runs duplicates run
-                # ids.  We keep the (fp -> error) mapping so the cache
-                # writeback below has the error_type / normalized_message
-                # fields the schema needs.
-                run_fp_to_error: dict[str, ExtractedError] = {}
-                for job in get_failed_jobs(client, repo_str, run.id):
-                    raw_log = fetch_job_log(client, repo_str, job.id)
-                    if raw_log is None:
-                        continue
-                    for error in extract_errors(normalize_to_text(raw_log)):
-                        run_fp_to_error[compute_fingerprint(error)] = error
-                run_timestamp = _iso_utc(run.created_at)
-                # In-memory occurrence list mirrors what the writeback below
-                # persists: one occurrence per (run, fp), not per job.
-                for fp in run_fp_to_error:
-                    occ = HistoricalOccurrence(
-                        run_id=run.id,
-                        timestamp=run_timestamp,
-                        commit_message=commit_message,
+                try:
+                    commit_message = get_commit_message(client, repo_str, run.head_sha)
+                    # Collect fingerprints per run first: the same error in two
+                    # jobs of one run must count as ONE occurrence, otherwise
+                    # occurrence_count inflates and related_runs duplicates run
+                    # ids.  We keep the (fp -> error) mapping so the cache
+                    # writeback below has the error_type / normalized_message
+                    # fields the schema needs.
+                    run_fp_to_error: dict[str, ExtractedError] = {}
+                    for job in get_failed_jobs(client, repo_str, run.id):
+                        raw_log = fetch_job_log(client, repo_str, job.id)
+                        if raw_log is None:
+                            continue
+                        for error in extract_errors(normalize_to_text(raw_log)):
+                            run_fp_to_error[compute_fingerprint(error)] = error
+                    run_timestamp = _iso_utc(run.created_at)
+                    # In-memory occurrence list mirrors what the writeback below
+                    # persists: one occurrence per (run, fp), not per job.
+                    for fp in run_fp_to_error:
+                        occ = HistoricalOccurrence(
+                            run_id=run.id,
+                            timestamp=run_timestamp,
+                            commit_message=commit_message,
+                        )
+                        fps.setdefault(fp, []).append(occ)
+                except (GithubException, httpx.HTTPStatusError) as api_exc:
+                    # Rate-limit/auth (403/429) are *stateful*: once one run
+                    # trips the limit, every later run in the window will too, so
+                    # abort history now rather than log an identical warning per
+                    # run and stall through each one.
+                    status = getattr(api_exc, "status", None)
+                    if status is None and isinstance(api_exc, httpx.HTTPStatusError):
+                        status = api_exc.response.status_code
+                    if status in (403, 429):
+                        raise
+                    # Other API failures degrade just this run so history keeps
+                    # scanning; a single bad run must not wipe the whole window.
+                    logger.warning(
+                        "History scan failed for run %d in %s: %s",
+                        run.id,
+                        repo_str,
+                        api_exc,
                     )
-                    fps.setdefault(fp, []).append(occ)
+                    continue
+                except httpx.TransportError as req_exc:
+                    # Transient network failure on one historical run — degrade
+                    # this run and keep going. (fetch_job_log already returns
+                    # None for transport errors, so this mainly covers the
+                    # get_commit_message / get_failed_jobs paths.)
+                    logger.warning(
+                        "History scan failed for run %d in %s: %s",
+                        run.id,
+                        repo_str,
+                        req_exc,
+                    )
+                    continue
+                except requests.exceptions.RequestException as req_exc:
+                    # PyGithub's underlying requests session raises its own
+                    # transport errors (ConnectionError et al.) rather than
+                    # always wrapping them in GithubException — treat them like
+                    # the httpx transport errors above: degrade this run, keep
+                    # scanning, rather than aborting the whole history window.
+                    logger.warning(
+                        "History scan failed for run %d in %s: %s",
+                        run.id,
+                        repo_str,
+                        req_exc,
+                    )
+                    continue
 
                 # Write back so the next invocation can short-circuit.
                 # Half a run must never be cached: cache_db.store_fingerprint
