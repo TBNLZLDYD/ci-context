@@ -27,7 +27,11 @@ def resolve_token(cli_token: str | None = None) -> str:
     # 1. CLI argument takes priority
     if cli_token:
         return cli_token
-    tried.append("CLI --token")
+    # Record the flag as "tried" only when it was actually supplied. When the
+    # user passes no --token at all, cli_token is None and claiming the flag
+    # was consulted would make the AuthError's "tried methods" list misleading.
+    if cli_token is not None:
+        tried.append("CLI --token")
 
     # 2. Config file
     token = _read_config_token()

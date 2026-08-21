@@ -24,9 +24,19 @@ class TestResolveToken(unittest.TestCase):
         """Should raise AuthError when no token is available."""
         with self.assertRaises(AuthError) as ctx:
             resolve_token(None)
-        # Check that tried methods are recorded
-        self.assertIn("CLI --token", ctx.exception.tried)
+        # No flag was passed (None), so the CLI must NOT be listed as tried —
+        # claiming it was would mislead the user about which sources were hit.
+        self.assertNotIn("CLI --token", ctx.exception.tried)
         self.assertIn("config file", ctx.exception.tried)
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("ci_context.github.auth._read_config_token", return_value=None)
+    @patch("ci_context.github.auth._gh_available", return_value=False)
+    def test_empty_cli_token_is_recorded_as_tried(self, mock_gh, mock_config):
+        """A supplied-but-empty --token IS recorded as tried (it was attempted)."""
+        with self.assertRaises(AuthError) as ctx:
+            resolve_token("")
+        self.assertIn("CLI --token", ctx.exception.tried)
 
     def test_cli_token_takes_priority(self):
         """CLI token should be returned directly."""
