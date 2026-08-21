@@ -119,7 +119,7 @@ def _fetch_attempt_jobs(
     url = f"/repos/{owner}/{repo_name}/actions/runs/{run_id}/attempts/{attempt}/jobs"
 
     # client.get() wraps the raw httpx GET in with_retry so transient 5xx /
-    # timeout / connect failures get the PRD 13.2 retry instead of failing
+    # timeout / connect failures get a single retry instead of failing
     # the whole report on a flaky network.
     response = client.get(url)
     response.raise_for_status()
@@ -223,14 +223,14 @@ def fetch_job_log(client: GitHubClient, owner_repo: str, job_id: int) -> str | N
     url = f"/repos/{owner}/{repo_name}/actions/jobs/{job_id}/logs"
 
     try:
-        # client.get() raises HTTPStatusError once its internal retry (PRD 13.2)
+        # client.get() raises HTTPStatusError once its internal retry
         # is exhausted, which the except blocks below degrade to None.
         response = client.get(url)
         response.raise_for_status()
 
         raw_log = response.text
 
-        # Empty log (PRD 13.2): return a marker so callers can surface it
+        # Empty log: return a marker so callers can surface it
         # rather than silently skipping the job.
         if not raw_log.strip():
             return "No log output available for this job"

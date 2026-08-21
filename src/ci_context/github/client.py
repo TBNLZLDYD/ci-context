@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-# PRD 13.2 mandates "1 retry with 2s exponential backoff" for transient
+# "1 retry with 2s exponential backoff" for transient
 # failures (connection error, timeout, 5xx). Centralized here so tests can
 # patch ci_context.github.client.time.sleep (the real time.sleep is not safe
 # in unit tests) and so the policy is visible from one place.
@@ -86,9 +86,9 @@ class GitHubClient:
         self._saved_proxy_env = _strip_proxy_env()
         _suppress_registry_proxy()
         try:
-            # timeout=10 enforces PRD 13.2's 10s network budget per call.
+            # timeout=10 enforces the 10s network budget per call.
             # retry=GithubRetry(total=1, backoff_factor=2.0) gives the exact
-            # "1 retry after 2s" policy the PRD asks for, overriding PyGithub's
+            # "1 retry after 2s" policy, overriding PyGithub's
             # default of 10 retries (which would multiply request latency by 10x
             # on transient failures and surprise the user).
             self._pygithub = Github(
@@ -161,7 +161,7 @@ class GitHubClient:
         return self._pygithub.get_repo(owner_repo)
 
     def get(self, url: str, *, is_idempotent: bool = True) -> httpx.Response:
-        """GET ``url`` with 1 retry on transient failures (PRD 13.2).
+        """GET ``url`` with 1 retry on transient failures.
 
         Wraps ``httpx_client.get`` + ``raise_for_status`` in :func:`with_retry`
         so 5xx, timeouts, and connection errors get one automatic retry after
@@ -206,7 +206,7 @@ class GitHubClient:
 
 
 # ---------------------------------------------------------------------------
-# Retry helper (PRD 13.2)
+# Retry helper
 # ---------------------------------------------------------------------------
 
 

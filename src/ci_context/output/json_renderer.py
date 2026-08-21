@@ -118,7 +118,7 @@ def _error_to_dict(error: ExtractedError) -> dict[str, object]:
 
 
 def render_json(report: FailureReport) -> str:
-    """Render a FailureReport to a JSON string conforming to PRD §F6 schema."""
+    """Render a FailureReport to the machine-readable JSON string consumed by `--json`."""
     # dict keys deliberately mirror dataclass field names so the JSON schema
     # stays coupled to the models rather than drifting into its own vocabulary.
     payload = {

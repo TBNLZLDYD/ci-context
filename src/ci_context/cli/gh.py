@@ -61,7 +61,7 @@ _CONFIDENCE_RANK = {"high": 0, "medium": 1, "low": 2}
 def _iso_utc(dt: datetime) -> str:
     """Serialize a timestamp to a UTC \"Z\" string regardless of tz flavor.
 
-    Mirrors json_renderer._serialize_created_at (PRD F6) so naive ISO strings
+    Mirrors json_renderer._serialize_created_at so naive ISO strings
     from run.created_at don't leak into outputs that promise a \"Z\" suffix.
     """
     if dt.tzinfo is not None:

@@ -446,7 +446,7 @@ def purge_expired() -> int:
 def stats() -> CacheStats:
     """Return a snapshot of cache contents and on-disk size.
 
-    Used by the future ``ci-context cache stats`` command (D25) and as a
+    Used by the ``ci-context cache stats`` command and as a
     quick smoke test that the DB is reachable.  ``db_size_bytes`` is the
     raw file size — SQLite may report slightly different "used" sizes
     internally after a VACUUM, but the on-disk number is what the user
