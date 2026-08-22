@@ -33,6 +33,7 @@ jobs:
           # A real failed run on this repo to benchmark against.
           RUN_ID: '32098958864'
           REPO: 'TBNLZLDYD/ci-context'
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -41,17 +42,22 @@ jobs:
 
           echo "::notice::tool version: $(uv run ci-context --version)"
 
+          # ci-context deliberately ignores the GITHUB_TOKEN env var (config /
+          # gh-auth are its preferred auth paths), so hand the runner's repo
+          # token over explicitly via --token.
+          TOKEN_ARG="--token $GITHUB_TOKEN"
+
           # Cold cache: first full report (includes history scan).
           uv run ci-context cache clear
           start=$(date +%s%N)
-          uv run ci-context gh run "$RUN_ID" --repo "$REPO" > /dev/null
+          uv run ci-context gh run "$RUN_ID" --repo "$REPO" $TOKEN_ARG > /dev/null
           end=$(date +%s%N)
           no_cache_ms=$(( (end - start) / 1000000 ))
           echo "::notice::no-cache report: ${no_cache_ms} ms"
 
           # Warm cache: same run again, history short-circuits.
           start=$(date +%s%N)
-          uv run ci-context gh run "$RUN_ID" --repo "$REPO" > /dev/null
+          uv run ci-context gh run "$RUN_ID" --repo "$REPO" $TOKEN_ARG > /dev/null
           end=$(date +%s%N)
           cached_ms=$(( (end - start) / 1000000 ))
           echo "::notice::cached report: ${cached_ms} ms"
