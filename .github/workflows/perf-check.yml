@@ -1,0 +1,75 @@
+name: Perf Check
+
+# Manual-only benchmark: measure report latency and log-extraction speed on a
+# GH Actions runner, which reaches api.github.com with much lower latency than a
+# domestic dev box. Dispatched by hand via `gh workflow run perf-check.yml` — it
+# never runs on push. Timings are surfaced as workflow notices so they are easy
+# to read back from the run log.
+#
+# Token: the runner's `gh` CLI is authenticated via the GITHUB_TOKEN env that
+# checkout configures, and ci-context's `gh auth token` fallback picks that up —
+# no --token on the command line needed.
+on:
+  workflow_dispatch:
+
+# Read-only: only needs to fetch the target run's logs and list runs.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Run latency and extraction benchmark
+        shell: bash
+        env:
+          # A real failed run on this repo to benchmark against.
+          RUN_ID: '32098958864'
+          REPO: 'TBNLZLDYD/ci-context'
+        run: |
+          set -euo pipefail
+
+          # Resolve deps so `uv run ci-context` uses the checked-out source.
+          uv sync --dev
+
+          echo "::notice::tool version: $(uv run ci-context --version)"
+
+          # Cold cache: first full report (includes history scan).
+          uv run ci-context cache clear
+          start=$(date +%s%N)
+          uv run ci-context gh run "$RUN_ID" --repo "$REPO" > /dev/null
+          end=$(date +%s%N)
+          no_cache_ms=$(( (end - start) / 1000000 ))
+          echo "::notice::no-cache report: ${no_cache_ms} ms"
+
+          # Warm cache: same run again, history short-circuits.
+          start=$(date +%s%N)
+          uv run ci-context gh run "$RUN_ID" --repo "$REPO" > /dev/null
+          end=$(date +%s%N)
+          cached_ms=$(( (end - start) / 1000000 ))
+          echo "::notice::cached report: ${cached_ms} ms"
+
+          # Extraction micro-benchmark: local only, no network.
+          uv run python - <<'PY'
+          import time
+          from pathlib import Path
+          from ci_context.analysis.normalizer import normalize_to_text
+          from ci_context.analysis.extractor import extract_errors
+
+          for f in sorted(Path('tests/fixtures').glob('*.log')):
+              raw = f.read_bytes().decode('utf-8', 'replace')
+              norm = normalize_to_text(raw)
+              t0 = time.perf_counter()
+              errs = extract_errors(norm)
+              ms = (time.perf_counter() - t0) * 1000
+              sub = (f.name, ms, len(errs))
+              # Notice per file keeps each timing separately visible in the log.
+              print(f"::{'notice'}::extract {f.name}: {ms:.2f} ms -> {len(errs)} errors")
+          PY
