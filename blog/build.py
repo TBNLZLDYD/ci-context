@@ -172,9 +172,8 @@ def render(post: dict[str, str], slug: str) -> str:
 
 def render_index(posts: list[tuple[str, dict[str, str]]]) -> str:
     items = [
-        '<li><h2><a href="%s/posts/%s.html">%s</a></h2>'
-        '<time>%s</time><p>%s</p></li>'
-        % (BASE_PATH, slug, html.escape(p["title"]), p.get("date", ""), p["_excerpt"])
+        f'<li><h2><a href="{BASE_PATH}/posts/{slug}.html">{html.escape(p["title"])}</a></h2>'
+        f'<time>{p.get("date", "")}</time><p>{p["_excerpt"]}</p></li>'
         for slug, p in posts
     ]
     content = '<ul class="posts">' + "\n".join(items) + "</ul>"
