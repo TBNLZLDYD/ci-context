@@ -37,3 +37,6 @@ Thumbs.db
 
 # docs
 docs/
+
+# Generated static site
+blog/_site/

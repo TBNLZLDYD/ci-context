@@ -1,0 +1,51 @@
+name: Deploy blog to GitHub Pages
+
+# Rebuild and publish blog/_site whenever the blog sources change, plus a manual
+# trigger so the first deploy can be kicked off by hand. Only path-filtered to
+# blog/ so day-to-day code pushes don't churn the Pages build.
+#
+# Prereq: repo Settings -> Pages -> Source must be "GitHub Actions" (one-time,
+# set in the web UI — there's no reliable REST endpoint to flip it).
+on:
+  push:
+    branches: [main]
+    paths: ["blog/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; the most recent one wins.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build the static site
+        # stdlib-only renderer; no dependency install step needed.
+        run: python blog/build.py
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blog/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
