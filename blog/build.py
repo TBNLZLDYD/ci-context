@@ -32,6 +32,7 @@ TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <link rel="stylesheet" href="__BASEPATH__/assets/style.css">
+<link rel="sitemap" type="application/xml" href="__BASEPATH__/sitemap.xml">
 </head>
 <body>
 <div class="wrap">
@@ -197,6 +198,23 @@ def excerpt(body: str) -> str:
     return html.escape(first[:160]) + ("&hellip;" if len(first) > 160 else "")
 
 
+def render_sitemap(posts: list[tuple[str, dict[str, str]]]) -> str:
+    # Deterministic vs the deploy order: sitemap is for crawlers, not humans, so
+    # a plain alphabetical/by-slug listing is fine. Canonical host + BASE_PATH
+    # prefix matches how Pages actually serves the project site.
+    host = "https://tbnlzldyd.github.io"
+    urls = [f"<url><loc>{host}{BASE_PATH}/</loc></url>"]
+    for slug, _p in posts:
+        urls.append(f"<url><loc>{host}{BASE_PATH}/posts/{slug}.html</loc></url>")
+    urls_xml = "\n  ".join(urls)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"  {urls_xml}\n"
+        "</urlset>\n"
+    )
+
+
 def main() -> None:
     # Wipe first so stale posts never linger in whatever gets deployed.
     shutil.rmtree(SITE, ignore_errors=True)
@@ -220,6 +238,7 @@ def main() -> None:
         posts.append((slug, meta))
 
     (SITE / "index.html").write_text(render_index(posts), encoding="utf-8")
+    (SITE / "sitemap.xml").write_text(render_sitemap(posts), encoding="utf-8")
     shutil.copyfile(ROOT / "assets" / "style.css", SITE / "assets" / "style.css")
     # Bing site verification token must sit at the site root; ship it through
     # the same build so the artifact carries it without a separate upload step.
