@@ -221,6 +221,9 @@ def main() -> None:
 
     (SITE / "index.html").write_text(render_index(posts), encoding="utf-8")
     shutil.copyfile(ROOT / "assets" / "style.css", SITE / "assets" / "style.css")
+    # Bing site verification token must sit at the site root; ship it through
+    # the same build so the artifact carries it without a separate upload step.
+    shutil.copyfile(ROOT / "BingSiteAuth.xml", SITE / "BingSiteAuth.xml")
     (SITE / ".nojekyll").touch()
     print(f"built {len(posts)} post(s) to {SITE}")
 
