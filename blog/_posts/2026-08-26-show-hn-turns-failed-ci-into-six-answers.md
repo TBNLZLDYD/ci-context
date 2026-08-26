@@ -43,8 +43,3 @@ A 12-second screen demo:
 https://github.com/TBNLZLDYD/ci-context/raw/main/assets/ci-context-marketing.gif
 More verified outputs: https://github.com/TBNLZLDYD/ci-context/blob/main/EXAMPLES.md
 Why I built it: https://github.com/TBNLZLDYD/ci-context
-
-Two things I'd genuinely like your take on:
-1. Does the six-section shape match how you debug a failed run — or is a section
-   missing?
-2. Does "no AI" read as a feature or a gap to you?
