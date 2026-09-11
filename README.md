@@ -2,15 +2,23 @@
 
 > One command to get full CI failure context.
 
-**ci-context** is a Python CLI tool that, given a failed GitHub Actions run ID,
-automatically fetches and synthesises all relevant context — errors, commit
-diff, PR reviews, history patterns — into one readable failure-diagnosis
-report. No more 10-30 minutes of manually digging through logs, commits, and
-PR comments.
+**ci-context** is a Python CLI for debugging GitHub Actions. Given a
+failed run ID, it pulls the run's logs, triggering commit, PR reviews,
+and the recent history of the same workflow, then synthesises all of
+it into a single readable failure-diagnosis report. It answers the
+question every CI debugging session starts with — *"why did my GitHub
+Actions run fail?"* — without the 10-30 minutes of manually digging
+through logs, commits, and PR comments.
 
-The pipeline is **deterministic, zero-AI, local-first**: a regex-based error
-extractor, a stable fingerprint matcher, and a SQLite cache keep every run
-fast and auditable.
+The pipeline is **deterministic, zero-AI, local-first**: a regex-based
+error extractor, a stable fingerprint matcher, and a SQLite cache keep
+every run fast and auditable. Errors are classified against the last N
+runs of the same workflow as `[exact]`, `[similar]`, or `[new]`, so a
+recurring error across runs is easy to spot at a glance instead of
+re-reading the same stack trace every Monday. In short: a single
+command that turns a failed run ID into the failures context you
+already wanted — for one-off triage, for post-mortems, and for
+debugging CI in general.
 
 ## Quick Start
 
@@ -237,6 +245,15 @@ uv run pytest
 
 The cache only stores error fingerprints and run metadata — never raw logs
 or tokens.
+
+## Roadmap
+
+The 0.2.x direction is decided by real user issues, not by an
+internal roadmap. Bug reports and feature requests filed against this
+repository tell us what to build next — file an issue using the
+[bug report](https://github.com/TBNLZLDYD/ci-context/issues/new?template=bug_report.yml)
+or [feature request](https://github.com/TBNLZLDYD/ci-context/issues/new?template=feature_request.yml)
+template and it will land in the next planning pass.
 
 ## License
 

@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an idea that would make ci-context more useful for you.
+title: "Feature: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem it solves
+      description: |
+        What real workflow pain does this address? A concrete scenario
+        (e.g. "every Monday I have to ...") is more useful than a
+        generic "would be nice to have".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behaviour
+      description: |
+        Sketch the user-facing behaviour: the command, the flag, the
+        new section in the report, the JSON field — whatever shape
+        the feature should take.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How urgent is this for you?
+      options:
+        - Waiting for users to vote this up
+        - Nice-to-have
+        - Critical
