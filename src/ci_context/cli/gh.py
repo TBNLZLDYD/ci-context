@@ -544,13 +544,15 @@ def _render_recent_failures(
         return
 
     # Local Console over StringIO mirrors rich_renderer.render_report: stdout
-    # carries exactly one rendered block, and force_terminal keeps ANSI in the
-    # captured string unless --no-color says otherwise.
+    # carries exactly one rendered block. color_system is pinned so ambient
+    # TERM=dumb / NO_COLOR cannot leak into the captured string — color here
+    # is governed solely by the no_color flag (see render_report for details).
     buffer = io.StringIO()
     out_console = Console(
         file=buffer,
         force_terminal=not no_color,
         no_color=no_color,
+        color_system="truecolor" if not no_color else None,
         width=100,
     )
 

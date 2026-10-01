@@ -34,12 +34,16 @@ def render_report(
     hides them entirely (JSON output already carries the full raw_lines).
     """
     # force_terminal keeps ANSI in the captured string; without it Rich would
-    # treat the StringIO as a non-TTY and silently drop all color.
+    # treat the StringIO as a non-TTY and silently drop all color. The target
+    # is a string, never a real terminal, so ambient TERM=dumb / NO_COLOR must
+    # not gate color either — pin color_system and let no_color be the only
+    # switch.
     buffer = io.StringIO()
     console = Console(
         file=buffer,
         force_terminal=not no_color,
         no_color=no_color,
+        color_system="truecolor" if not no_color else None,
         width=100,
     )
 
