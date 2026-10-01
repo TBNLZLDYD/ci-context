@@ -257,6 +257,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "pygithub" },
+    { name = "requests" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -275,6 +276,7 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "pygithub", specifier = ">=2.3,<3" },
+    { name = "requests", specifier = ">=2.31,<3" },
     { name = "rich", specifier = ">=13.0,<14" },
     { name = "typer", specifier = ">=0.12,<1" },
 ]

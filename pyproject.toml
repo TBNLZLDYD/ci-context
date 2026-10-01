@@ -31,6 +31,7 @@ dependencies = [
     "rich>=13.0,<14",
     "pygithub>=2.3,<3",
     "httpx>=0.27,<1",
+    "requests>=2.31,<3",
 ]
 
 [dependency-groups]
