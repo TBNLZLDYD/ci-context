@@ -304,24 +304,26 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
         fp = compute_fingerprint(err)
 
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, self.historical_run],
             ),
-            patch("ci_context.cli.gh.get_commit_message", return_value="fix bug") as mock_msg,
             patch(
-                "ci_context.cli.gh.get_failed_jobs", return_value=[MagicMock(id=1)]
+                "ci_context.report_builder.get_commit_message", return_value="fix bug"
+            ) as mock_msg,
+            patch(
+                "ci_context.report_builder.get_failed_jobs", return_value=[MagicMock(id=1)]
             ) as mock_jobs,
             patch(
-                "ci_context.cli.gh.fetch_job_log",
+                "ci_context.report_builder.fetch_job_log",
                 return_value="Traceback (most recent call last):",
             ),
-            patch("ci_context.cli.gh.extract_errors", return_value=[err]) as mock_extract,
-            patch("ci_context.cli.gh.console"),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
+            patch("ci_context.report_builder.extract_errors", return_value=[err]) as mock_extract,
+            patch("ci_context.report_builder.console"),
+            patch("ci_context.report_builder.build_history_report") as mock_build,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             _build_history(
                 mock_client, "owner/repo", self.current_run, self.current_errors, 10
@@ -354,19 +356,21 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
 
         mock_client = MagicMock()
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, self.historical_run],
             ),
-            patch("ci_context.cli.gh.get_commit_message", return_value="unused") as mock_msg,
-            patch("ci_context.cli.gh.get_failed_jobs") as mock_jobs,
-            patch("ci_context.cli.gh.fetch_job_log") as mock_log,
-            patch("ci_context.cli.gh.extract_errors") as mock_extract,
-            patch("ci_context.cli.gh.console"),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
+            patch(
+                "ci_context.report_builder.get_commit_message", return_value="unused"
+            ) as mock_msg,
+            patch("ci_context.report_builder.get_failed_jobs") as mock_jobs,
+            patch("ci_context.report_builder.fetch_job_log") as mock_log,
+            patch("ci_context.report_builder.extract_errors") as mock_extract,
+            patch("ci_context.report_builder.console"),
+            patch("ci_context.report_builder.build_history_report") as mock_build,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             _build_history(
                 mock_client, "owner/repo", self.current_run, self.current_errors, 10
@@ -416,23 +420,23 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
 
         mock_client = MagicMock()
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, cached_run_with_distinct_sha, new_run],
             ),
             patch(
-                "ci_context.cli.gh.get_commit_message", return_value="new commit"
+                "ci_context.report_builder.get_commit_message", return_value="new commit"
             ) as mock_msg,
             patch(
-                "ci_context.cli.gh.get_failed_jobs", return_value=[MagicMock(id=99)]
+                "ci_context.report_builder.get_failed_jobs", return_value=[MagicMock(id=99)]
             ) as mock_jobs,
-            patch("ci_context.cli.gh.fetch_job_log", return_value="log"),
-            patch("ci_context.cli.gh.extract_errors", return_value=[err]) as mock_extract,
-            patch("ci_context.cli.gh.console"),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
+            patch("ci_context.report_builder.fetch_job_log", return_value="log"),
+            patch("ci_context.report_builder.extract_errors", return_value=[err]) as mock_extract,
+            patch("ci_context.report_builder.console"),
+            patch("ci_context.report_builder.build_history_report") as mock_build,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             _build_history(
                 mock_client, "owner/repo", self.current_run, self.current_errors, 10
@@ -464,24 +468,24 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
         err = self.current_errors[0]
 
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, self.historical_run],
             ),
-            patch("ci_context.cli.gh.get_commit_message", return_value="m"),
-            patch("ci_context.cli.gh.get_failed_jobs", return_value=[MagicMock(id=1)]),
-            patch("ci_context.cli.gh.fetch_job_log", return_value="log"),
-            patch("ci_context.cli.gh.extract_errors", return_value=[err]),
-            patch("ci_context.cli.gh.console"),
+            patch("ci_context.report_builder.get_commit_message", return_value="m"),
+            patch("ci_context.report_builder.get_failed_jobs", return_value=[MagicMock(id=1)]),
+            patch("ci_context.report_builder.fetch_job_log", return_value="log"),
+            patch("ci_context.report_builder.extract_errors", return_value=[err]),
+            patch("ci_context.report_builder.console"),
             # Force the cache read to explode — the build must still succeed.
             patch(
-                "ci_context.cli.gh.cache_db.get_fingerprint_occurrences",
+                "ci_context.report_builder.cache_db.get_fingerprint_occurrences",
                 side_effect=RuntimeError("simulated cache boom"),
             ),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
+            patch("ci_context.report_builder.build_history_report") as mock_build,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             result = _build_history(
                 mock_client, "owner/repo", self.current_run, self.current_errors, 10
@@ -500,16 +504,18 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
         """
         mock_client = MagicMock()
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, self.historical_run],
             ),
-            patch("ci_context.cli.gh.console"),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
-            patch("ci_context.cli.gh.cache_db.get_fingerprint_occurrences") as mock_cache_get,
+            patch("ci_context.report_builder.console"),
+            patch("ci_context.report_builder.build_history_report") as mock_build,
+            patch(
+                "ci_context.report_builder.cache_db.get_fingerprint_occurrences"
+            ) as mock_cache_get,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             _build_history(mock_client, "owner/repo", self.current_run, [], 10)
 
@@ -520,31 +526,31 @@ class TestBuildHistoryCacheIntegration(unittest.TestCase):
         """A broken cache write must not prevent history from being reported.
 
         When the cache-miss path extracts errors and tries to write them back,
-        a failure in store_fingerprint is caught and logged — the report still
+        a failure in store_fingerprints is caught and logged — the report still
         completes using the in-memory occurrence list.
         """
         mock_client = MagicMock()
         err = self.current_errors[0]
 
         with (
-            patch("ci_context.cli.gh.get_workflow_file", return_value="ci.yml"),
+            patch("ci_context.report_builder.get_workflow_file", return_value="ci.yml"),
             patch(
-                "ci_context.cli.gh.list_workflow_runs",
+                "ci_context.report_builder.list_workflow_runs",
                 return_value=[self.current_run, self.historical_run],
             ),
-            patch("ci_context.cli.gh.get_commit_message", return_value="m"),
-            patch("ci_context.cli.gh.get_failed_jobs", return_value=[MagicMock(id=1)]),
-            patch("ci_context.cli.gh.fetch_job_log", return_value="log"),
-            patch("ci_context.cli.gh.extract_errors", return_value=[err]),
-            patch("ci_context.cli.gh.console"),
-            # Force the cache write to explode on every store_fingerprint call.
+            patch("ci_context.report_builder.get_commit_message", return_value="m"),
+            patch("ci_context.report_builder.get_failed_jobs", return_value=[MagicMock(id=1)]),
+            patch("ci_context.report_builder.fetch_job_log", return_value="log"),
+            patch("ci_context.report_builder.extract_errors", return_value=[err]),
+            patch("ci_context.report_builder.console"),
+            # Force the cache write to explode on every store_fingerprints call.
             patch(
-                "ci_context.cli.gh.cache_db.store_fingerprint",
+                "ci_context.report_builder.cache_db.store_fingerprints",
                 side_effect=RuntimeError("simulated write boom"),
             ),
-            patch("ci_context.cli.gh.build_history_report") as mock_build,
+            patch("ci_context.report_builder.build_history_report") as mock_build,
         ):
-            from ci_context.cli.gh import _build_history
+            from ci_context.report_builder import build_history as _build_history
 
             result = _build_history(
                 mock_client, "owner/repo", self.current_run, self.current_errors, 10

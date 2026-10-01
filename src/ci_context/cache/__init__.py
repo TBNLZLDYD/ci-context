@@ -17,6 +17,7 @@ from ci_context.cache.db import (
     purge_expired,
     stats,
     store_fingerprint,
+    store_fingerprints,
     store_run_metadata,
 )
 
@@ -32,5 +33,6 @@ __all__ = [
     "purge_expired",
     "stats",
     "store_fingerprint",
+    "store_fingerprints",
     "store_run_metadata",
 ]

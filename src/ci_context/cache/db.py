@@ -26,7 +26,7 @@ import json
 import logging
 import os
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -219,6 +219,38 @@ def _open_or_recover(path: Path) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 
 
+def store_fingerprints(
+    run_id: int,
+    repo: str,
+    commit_message: str,
+    timestamp: str,
+    entries: Mapping[str, tuple[str, str]],
+) -> None:
+    """Record a whole run's fingerprint set as ONE transaction.
+
+    Args:
+        run_id: GitHub Actions run id where the errors were observed.
+        repo: ``owner/repo`` string scoping the occurrences.
+        commit_message: commit message of the run, for matcher commit-pattern hints.
+        timestamp: ISO-8601 ``Z`` string for when the run happened.
+        entries: ``fingerprint -> (error_type, normalized_message)`` mapping,
+            e.g. ``{fp: (e.error_type, normalize_error_message(e))}``.
+
+    A single connection + ``with conn:`` gives commit-on-success /
+    rollback-on-failure for the entire run's fingerprint set.  This matters
+    because the history scanner treats ANY occurrence of a run as "fully
+    scanned": a process dying halfway through a per-fingerprint-commit loop
+    would leave the run partially cached and its missing fingerprints would
+    never be re-extracted.
+    """
+    with get_connection() as conn, conn:
+        for fingerprint, (error_type, normalized_message) in entries.items():
+            _upsert_fingerprint_occurrence(
+                conn, fingerprint, error_type, normalized_message, run_id, repo,
+                commit_message, timestamp,
+            )
+
+
 def store_fingerprint(
     fingerprint: str,
     error_type: str,
@@ -228,55 +260,61 @@ def store_fingerprint(
     commit_message: str,
     timestamp: str,
 ) -> None:
-    """Record a fingerprint occurrence in the cache.
+    """Record a single fingerprint occurrence in the cache.
 
-    UPSERT semantics on the ``fingerprints`` row keeps the most recent
-    ``last_seen_at`` and bumps the ``created_at`` clock (re-anchoring the TTL
-    on every observation).  A new row is appended to
-    ``fingerprint_occurrences`` for the history matcher to see the per-run
-    trail — unless that exact (run, fingerprint, repo) was already observed,
-    in which case the UNIQUE constraint turns the insert into a no-op so a
-    repeated observation cannot double-count the same run.
-
-    Args:
-        fingerprint: 16-char hex fingerprint from
-            :func:`ci_context.analysis.fingerprint.compute_fingerprint`.
-        error_type: ``ExtractedError.error_type`` value (e.g. "Python Traceback").
-        normalized_message: the *user-facing* error message — stored so a
-            future feature can synthesise an ExtractedError without the raw
-            log.
-        run_id: GitHub Actions run id where the error was observed.
-        repo: ``owner/repo`` string; scopes the occurrence to a repo so a
-            fingerprint seen in repo A is not confused with one in repo B.
-        commit_message: commit message of the run, for matcher commit-pattern
-            hints.
-        timestamp: ISO-8601 ``Z`` string for when the run happened (not when
-            the row was cached).
+    Thin wrapper over :func:`store_fingerprints`; see its UPSERT semantics.
     """
-    with get_connection() as conn, conn:
-        conn.execute(
-            """
-            INSERT INTO fingerprints (
-                fingerprint, error_type, normalized_message,
-                first_seen_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(fingerprint) DO UPDATE SET
-                last_seen_at = excluded.last_seen_at,
-                -- Re-anchor the TTL on every observation so a hot
-                -- fingerprint never expires while still being seen.
-                created_at = excluded.created_at
-            """,
-            (fingerprint, error_type, normalized_message, timestamp, timestamp),
-        )
-        conn.execute(
-            """
-            INSERT INTO fingerprint_occurrences (
-                fingerprint, run_id, repo, commit_message, timestamp
-            ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(fingerprint, run_id, repo) DO NOTHING
-            """,
-            (fingerprint, run_id, repo, commit_message, timestamp),
-        )
+    store_fingerprints(
+        run_id,
+        repo,
+        commit_message,
+        timestamp,
+        {fingerprint: (error_type, normalized_message)},
+    )
+
+
+def _upsert_fingerprint_occurrence(
+    conn: sqlite3.Connection,
+    fingerprint: str,
+    error_type: str,
+    normalized_message: str,
+    run_id: int,
+    repo: str,
+    commit_message: str,
+    timestamp: str,
+) -> None:
+    """UPSERT one (fingerprint, occurrence) pair on an open connection.
+
+    The ``fingerprints`` UPSERT keeps the most recent ``last_seen_at`` and
+    re-anchors the TTL on every observation; the UNIQUE(fingerprint, run_id,
+    repo) constraint turns a repeated observation into a no-op so the same
+    error re-seen inside one run cannot double-count.
+
+    Takes the connection (rather than opening one) so callers control the
+    transaction boundary — :func:`store_fingerprints` writes a whole run
+    atomically, while :func:`store_fingerprint` wraps a single pair.
+    """
+    conn.execute(
+        """
+        INSERT INTO fingerprints (
+            fingerprint, error_type, normalized_message,
+            first_seen_at, last_seen_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(fingerprint) DO UPDATE SET
+            last_seen_at = excluded.last_seen_at,
+            created_at = excluded.created_at
+        """,
+        (fingerprint, error_type, normalized_message, timestamp, timestamp),
+    )
+    conn.execute(
+        """
+        INSERT INTO fingerprint_occurrences (
+            fingerprint, run_id, repo, commit_message, timestamp
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(fingerprint, run_id, repo) DO NOTHING
+        """,
+        (fingerprint, run_id, repo, commit_message, timestamp),
+    )
 
 
 def get_fingerprint_occurrences(
