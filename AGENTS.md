@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Kimi Code, Claude Code, etc.) when working with code in this repository.
 
 ## Project Overview
 
@@ -83,15 +83,15 @@ CLI (Typer)
 
 ### Module Map
 
-| Package       | Purpose                                                                                                                                                                                                                                                                                                                              | Status  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (full pipeline: extract errors -> commit/PR/history context -> render) / `recent` / `repo` (failed-run list + failure-rate trend), all implemented. `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference).                                                                               | Partial |
+| Package       | Purpose                                                                                                                                                                                                                                                                                                                            | Status  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `cli/`      | Typer commands.`main.py` = root app + `gh`/`cache` sub-typers. `gh.py` = `run` (full pipeline: extract errors -> commit/PR/history context -> render) / `recent` / `repo` (failed-run list + failure-rate trend), all implemented. `cache.py` = `clear`/`stats` (stub). `repo_utils.py` = implemented (git remote -> owner/repo inference). | Partial |
 | `github/`   | All GitHub API interaction.`client.py` owns PyGithub + httpx instances and rate-limit tracking. `auth.py` resolves token (CLI -> config file -> gh auth). `exceptions.py` = custom error hierarchy (AuthError, RateLimitError, RunNotFoundError). `runs.py` + `jobs.py` = implemented. `commits.py` + `prs.py` = implemented. | Partial |
-| `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` = implemented. `matcher` = implemented.                                                                                                                                                                                | Done     |
-| `models/`   | Pure dataclasses. All defined:`WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`.                                                                                                                                                                           | Done    |
-| `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both implemented and wired into the CLI.                                                                                                                                                                                                                                                                       | Stub    |
-| `cache/`    | SQLite for error fingerprints + run metadata. Stub.                                                                                                                                                                                                                                                                                  | Stub    |
-| `config/`   | TOML config management. Stub.                                                                                                                                                                                                                                                                                                        | Stub    |
+| `analysis/` | Log processing pipeline.`normalizer` = implemented. `patterns` = implemented. `extractor` = implemented. `fingerprint` = implemented. `matcher` = implemented.                                                                                                                                                                    | Done    |
+| `models/`   | Pure dataclasses. All defined:`WorkflowRunInfo`, `ExtractedError`, `CommitInfo`, `PRInfo`, `FailureReport`, `HistoryReport`, `PatternMatch`.                                                                                                                                                                                       | Done    |
+| `output/`   | Render`FailureReport` -> terminal (Rich) or JSON. Both implemented and wired into the CLI.                                                                                                                                                                                                                                         | Stub    |
+| `cache/`    | SQLite for error fingerprints + run metadata. Stub.                                                                                                                                                                                                                                                                                | Stub    |
+| `config/`   | TOML config management. Stub.                                                                                                                                                                                                                                                                                                      | Stub    |
 
 ### Error Extraction Pipeline (Implemented)
 
@@ -107,8 +107,8 @@ None currently known.
 
 ## Known Missing Features
 
-| Feature                                                          | Location              | Status                                          |
-| ---------------------------------------------------------------- | --------------------- | ----------------------------------------------- |
+| Feature                             | Location       | Status                                          |
+| ----------------------------------- | -------------- | ----------------------------------------------- |
 | `cache clear` / `cache stats` (D25) | `cli/cache.py` | Accepted but stub (SQLite cache lands D24) |
 
 ## Conventions
