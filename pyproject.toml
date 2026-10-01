@@ -44,6 +44,10 @@ dev = [
     "pytest-cov>=7.1.0",
 ]
 
+[project.urls]
+Homepage = "https://tbnlzldyd.github.io/ci-context/"
+Repository = "https://github.com/TBNLZLDYD/ci-context"
+
 [project.scripts]
 ci-context = "ci_context.cli.main:app"
 

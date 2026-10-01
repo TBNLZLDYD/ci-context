@@ -1,6 +1,14 @@
 # ci-context
 
+[![CI](https://github.com/TBNLZLDYD/ci-context/actions/workflows/ci.yml/badge.svg)](https://github.com/TBNLZLDYD/ci-context/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/ci-context)](https://pypi.org/project/ci-context/)
+[![PyPI downloads](https://img.shields.io/pepy/dm/ci-context)](https://pepy.tech/project/ci-context)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/pypi/pyversions/ci-context)](https://pypi.org/project/ci-context/)
+
 > 一条命令获取完整的 CI 失败上下文。
+
+![输入一个失败的 run ID，输出六段诊断报告。](assets/ci-context-marketing.gif)
 
 **ci-context** 是一个 Python CLI 工具。给定一个失败的 GitHub Actions run
 ID，它会自动抓取并综合所有相关上下文——错误、commit diff、PR 评论、历史

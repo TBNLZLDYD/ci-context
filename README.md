@@ -1,6 +1,14 @@
 # ci-context
 
+[![CI](https://github.com/TBNLZLDYD/ci-context/actions/workflows/ci.yml/badge.svg)](https://github.com/TBNLZLDYD/ci-context/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/ci-context)](https://pypi.org/project/ci-context/)
+[![PyPI downloads](https://img.shields.io/pepy/dm/ci-context)](https://pepy.tech/project/ci-context)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/pypi/pyversions/ci-context)](https://pypi.org/project/ci-context/)
+
 > One command to get full CI failure context.
+
+![One failed run ID in, a six-section report out.](assets/ci-context-marketing.gif)
 
 **ci-context** is a Python CLI for debugging GitHub Actions. Given a
 failed run ID, it pulls the run's logs, triggering commit, PR reviews,
