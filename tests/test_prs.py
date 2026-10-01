@@ -13,7 +13,7 @@ from ci_context.github.prs import (
     find_pr_number,
     get_pr_context,
 )
-from ci_context.models.pr import PRInfo
+from ci_context.models import PRInfo
 
 
 class _FakeReviewList:

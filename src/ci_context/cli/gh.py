@@ -33,9 +33,7 @@ from ci_context.github.exceptions import AuthError, RateLimitError, RunNotFoundE
 from ci_context.github.jobs import FAILURE_CONCLUSIONS, JobInfo, fetch_job_log, get_failed_jobs
 from ci_context.github.prs import find_pr_number, get_pr_context
 from ci_context.github.runs import get_run, get_workflow_file, list_workflow_runs
-from ci_context.models.error import ExtractedError
-from ci_context.models.report import FailureReport, HistoryReport
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import ExtractedError, FailureReport, HistoryReport, WorkflowRunInfo
 from ci_context.output.json_renderer import render_json
 from ci_context.output.rich_renderer import render_report
 

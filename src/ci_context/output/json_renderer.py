@@ -5,11 +5,17 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from ci_context.models.commit import ChangedFile, CommitInfo
-from ci_context.models.error import ExtractedError
-from ci_context.models.pr import PRInfo, ReviewComment
-from ci_context.models.report import FailureReport, HistoryReport, PatternMatch
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import (
+    ChangedFile,
+    CommitInfo,
+    ExtractedError,
+    FailureReport,
+    HistoryReport,
+    PatternMatch,
+    PRInfo,
+    ReviewComment,
+    WorkflowRunInfo,
+)
 
 # strftime drops tzinfo, so an aware non-UTC value would be relabeled "Z" at the
 # wrong instant if formatted directly — normalize to UTC before formatting.

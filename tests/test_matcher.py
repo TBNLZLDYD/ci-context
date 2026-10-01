@@ -13,8 +13,7 @@ from ci_context.analysis.matcher import (
     levenshtein_distance,
     match_errors,
 )
-from ci_context.models.error import ExtractedError
-from ci_context.models.report import PatternMatch
+from ci_context.models import ExtractedError, PatternMatch
 
 # ---------------------------------------------------------------------------
 # Helpers for building test data

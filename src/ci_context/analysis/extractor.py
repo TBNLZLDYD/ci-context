@@ -9,7 +9,7 @@ levels before capping the result at 10 entries.
 from __future__ import annotations
 
 from ci_context.analysis.patterns import ErrorPattern, get_patterns
-from ci_context.models.error import ExtractedError
+from ci_context.models import ExtractedError
 
 # Maximum number of distinct errors to return — prevents runaway output on
 # logs that contain hundreds of repeated failures.

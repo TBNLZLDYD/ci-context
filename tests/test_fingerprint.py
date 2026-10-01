@@ -11,7 +11,7 @@ from ci_context.analysis.fingerprint import (
     _replace_shas,
     compute_fingerprint,
 )
-from ci_context.models.error import ExtractedError
+from ci_context.models import ExtractedError
 
 
 class TestReplaceShas(unittest.TestCase):

@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ci_context.analysis.matcher import HistoricalOccurrence
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import WorkflowRunInfo
 
 logger = logging.getLogger(__name__)
 

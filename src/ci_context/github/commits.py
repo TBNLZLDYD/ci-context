@@ -15,7 +15,7 @@ import logging
 from github.Commit import Commit as PyGithubCommit
 
 from ci_context.github.client import GitHubClient
-from ci_context.models.commit import ChangedFile, CommitInfo
+from ci_context.models import ChangedFile, CommitInfo
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from github.GithubException import GithubException
 
 from ci_context.github.exceptions import RunNotFoundError
 from ci_context.github.runs import get_run, get_workflow_file, list_workflow_runs
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import WorkflowRunInfo
 
 
 def _make_run_mock(**overrides: object) -> MagicMock:

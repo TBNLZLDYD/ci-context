@@ -18,7 +18,7 @@ from github.PullRequest import PullRequest as PyGithubPullRequest
 from github.PullRequestReview import PullRequestReview as PyGithubPullRequestReview
 
 from ci_context.github.client import GitHubClient
-from ci_context.models.pr import PRInfo, ReviewComment
+from ci_context.models import PRInfo, ReviewComment
 
 logger = logging.getLogger(__name__)
 

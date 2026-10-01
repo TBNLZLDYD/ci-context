@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import typer
 
 from ci_context.cli.gh import run_command
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import WorkflowRunInfo
 
 
 def _make_run_info(conclusion: str | None, status: str = "completed") -> WorkflowRunInfo:

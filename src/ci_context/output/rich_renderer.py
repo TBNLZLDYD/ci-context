@@ -10,11 +10,14 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from ci_context.models.commit import CommitInfo
-from ci_context.models.error import ExtractedError
-from ci_context.models.pr import PRInfo
-from ci_context.models.report import FailureReport, HistoryReport
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import (
+    CommitInfo,
+    ExtractedError,
+    FailureReport,
+    HistoryReport,
+    PRInfo,
+    WorkflowRunInfo,
+)
 
 
 def render_report(

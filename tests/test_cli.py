@@ -16,7 +16,7 @@ from ci_context import __version__
 from ci_context.cli.gh import _render_recent_failures
 from ci_context.cli.main import app
 from ci_context.github.exceptions import AuthError
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import WorkflowRunInfo
 
 
 def _make_mock_client() -> MagicMock:

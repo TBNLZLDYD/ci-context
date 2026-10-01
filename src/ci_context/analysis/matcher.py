@@ -11,8 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ci_context.analysis.fingerprint import compute_fingerprint
-from ci_context.models.error import ExtractedError
-from ci_context.models.report import HistoryReport, PatternMatch
+from ci_context.models import ExtractedError, HistoryReport, PatternMatch
 
 # ---------------------------------------------------------------------------
 # Historical occurrence record — internal helper, not a top-level model

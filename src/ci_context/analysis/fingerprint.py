@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from ci_context.models.error import ExtractedError
+from ci_context.models import ExtractedError
 
 # ---------------------------------------------------------------------------
 # Precompiled normalization patterns — applied in strict order

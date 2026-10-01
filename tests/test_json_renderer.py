@@ -4,11 +4,17 @@ import json
 import unittest
 from datetime import UTC, datetime, timedelta, timezone
 
-from ci_context.models.commit import ChangedFile, CommitInfo
-from ci_context.models.error import ExtractedError
-from ci_context.models.pr import PRInfo, ReviewComment
-from ci_context.models.report import FailureReport, HistoryReport, PatternMatch
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import (
+    ChangedFile,
+    CommitInfo,
+    ExtractedError,
+    FailureReport,
+    HistoryReport,
+    PatternMatch,
+    PRInfo,
+    ReviewComment,
+    WorkflowRunInfo,
+)
 from ci_context.output.json_renderer import render_json
 
 

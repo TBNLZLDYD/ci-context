@@ -11,7 +11,7 @@ from github.WorkflowRun import WorkflowRun as PyGithubWorkflowRun
 
 from ci_context.github.client import GitHubClient
 from ci_context.github.exceptions import RunNotFoundError
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import WorkflowRunInfo
 
 logger = logging.getLogger(__name__)
 

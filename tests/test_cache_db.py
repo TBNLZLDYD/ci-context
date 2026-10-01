@@ -41,8 +41,7 @@ from ci_context.cache.db import (
     store_fingerprint,
     store_run_metadata,
 )
-from ci_context.models.error import ExtractedError
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import ExtractedError, WorkflowRunInfo
 
 # ---------------------------------------------------------------------------
 # Test fixtures and helpers

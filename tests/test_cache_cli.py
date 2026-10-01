@@ -24,8 +24,7 @@ from ci_context.analysis.fingerprint import compute_fingerprint
 from ci_context.cache import db
 from ci_context.cli.cache import cache_clear, cache_purge, cache_stats
 from ci_context.cli.main import app
-from ci_context.models.error import ExtractedError
-from ci_context.models.run import WorkflowRunInfo
+from ci_context.models import ExtractedError, WorkflowRunInfo
 
 
 @contextlib.contextmanager

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from ci_context.github.commits import MAX_CHANGED_FILES, get_commit_context
-from ci_context.models.commit import CommitInfo
+from ci_context.models import CommitInfo
 
 
 class TestGetCommitContext(unittest.TestCase):
